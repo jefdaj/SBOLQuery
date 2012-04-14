@@ -1,5 +1,7 @@
 from rdflib import Namespace, Literal, URIRef
 
+from SPARQLWrapper import SPARQLWrapper, JSON
+
 # this package doesn't really have its imports figured out.
 # there are a lot of useful objects in there,
 # but you have to dig through it to find them yourself
@@ -13,7 +15,9 @@ from telescope.sparql.helpers     import RDF, RDFS
 from telescope.sparql.helpers     import is_a, v, op
 
 SBOL     = Namespace('http://sbols.org/sbol.owl#')
-REGISTRY = Namespace('<http://partsregistry.org/#>')
+REGISTRY = Namespace('http://partsregistry.org/#')
+
+SBPKB_URL = 'http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb'
 
 class SBOLQuery(object):
 
@@ -48,7 +52,7 @@ class SBOLQuery(object):
 
     def __str__(self):
         'Returns the query as a str'
-        return self.compile_query()
+        return self.build_query()
 
     def add_part_attribute(self, attribute, value):
         'Generic method that adds a WHERE clause involving self.part'
@@ -66,7 +70,7 @@ class SBOLQuery(object):
         # todo support && operator too
         self.filters.append( op.regex(variable, keyword, "i") )
 
-    def compile_query(self):
+    def build_query(self):
         'Builds the query and return it as a str'
 
         # apply changes to a local variable
@@ -83,15 +87,49 @@ class SBOLQuery(object):
 
         return query.compile()
 
+    def fetch_results(self):
+        'Performs the query and returns results as tuples'
+        # todo return custom objects instead?
+
+        # compile query
+        query = self.build_query()
+
+        # fetch JSON
+        sparql = SPARQLWrapper(SBPKB_URL)
+        sparql.setQuery(query)
+        sparql.setReturnFormat(JSON)
+        try:
+            json = sparql.query().convert()
+        except Exception, e:
+            print e
+            print query
+            return []
+
+        # process into tuples
+        tuples = []
+        for result in json["results"]["bindings"]:
+            biobrickID       = result['name']['value']
+            shortDescription = result['short']['value']
+            tuples.append((biobrickID, shortDescription))
+
+        return tuples
+
+def summarize(message, results, max_shown=5):
+    print
+    print message
+    print '%i results' % len(results)
+    if len(results) == 0:
+        return
+    else:
+        print 'here are the first %i:' % max_shown
+        for n in range(min(len(results), max_shown)):
+            print results[n]
+        print
+
 if __name__ == '__main__':
-    print
-    print 'with None:'
-    print SBOLQuery(None)
-    print
-    print 'with tetr:'
-    print SBOLQuery('tetr')
-    print
-    print 'with tetr, cds:'
-    print SBOLQuery('tetr', 'cds')
-    print
+    summarize('searched for tetr',      SBOLQuery('tetr'       ).fetch_results())
+    summarize('searched for tetr, cds', SBOLQuery('tetr', 'cds').fetch_results())
+
+    # this works, but takes a long time
+    #summarize('searched for None', SBOLQuery(None).fetch_results())
 
