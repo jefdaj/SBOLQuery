@@ -21,38 +21,45 @@ SBPKB_URL = 'http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb'
 
 class SBOLQuery(object):
 
-    def __init__(self, keyword, registry_type=None):
+    def __init__(self, keyword, registry_type=None, limit=None):
         'Creates the default query'
-    
+
         # create variables
         # todo support more variables
+        # todo accept strings rather than variable obejcts
         self.part  = v.part
         self.name  = v.name
         self.short = v.short
+        self.selects = [self.name, self.short]
         self.wheres  = []
         self.filters = []
+        self.limit = limit
 
-        # start with a SELECT statement
-        self.query = Select((self.name, self.short))
+        # set up a generic query
+        self.add_basics()
 
-        # add basic WHERE clauses
+        # add restrictions
+        if keyword:
+            self.add_regex_filter(self.name,  keyword)
+            self.add_regex_filter(self.short, keyword)
+        if registry_type:
+            self.add_registry_type(registry_type)
+
+    def add_basics(self):
+        'Add generic WHERE clauses'
         self.add_part_attribute(is_a,                  SBOL.Part            )
         self.add_part_attribute(SBOL.name,             self.name            )
         self.add_part_attribute(SBOL.status,           Literal('Available') )
         self.add_part_attribute(SBOL.shortDescription, self.short           )
 
-        # restrict to a specific type
-        if registry_type:
-            self.add_registry_type(registry_type)
-
-        # add FILTER clauses
-        if keyword:
-            self.add_regex_filter(self.name,  keyword)
-            self.add_regex_filter(self.short, keyword)
-
     def __str__(self):
         'Returns the query as a str'
         return self.build_query()
+
+    def add_field(self, field):
+        'Add to the list of attributes to SELECT'
+        # todo add to variables, then check when adding filters
+        raise NotImplementedError
 
     def add_part_attribute(self, attribute, value):
         'Generic method that adds a WHERE clause involving self.part'
@@ -73,9 +80,8 @@ class SBOLQuery(object):
     def build_query(self):
         'Builds the query and return it as a str'
 
-        # apply changes to a local variable
-        # rather than the stored "vanilla" query
-        query = self.query
+        # start with a SELECT statement
+        query = Select(self.selects, limit=self.limit)
 
         # add WHERE clauses
         for clause in self.wheres:
@@ -117,19 +123,21 @@ class SBOLQuery(object):
 def summarize(message, results, max_shown=5):
     print
     print message
-    print '%i results' % len(results)
+
     if len(results) == 0:
         return
     else:
-        print 'here are the first %i:' % max_shown
-        for n in range(min(len(results), max_shown)):
-            print results[n]
-        print
+        if len(results) > max_shown:
+            print 'first %i results of %i:' % (max_shown, len(results))
+        else:
+            print '%i results:' % len(results)
+
+    for n in range(min(len(results), max_shown)):
+        print results[n]
+    print
 
 if __name__ == '__main__':
-    summarize('searched for tetr',      SBOLQuery('tetr'       ).fetch_results())
+    summarize('searched for None',      SBOLQuery(None, limit=100).fetch_results())
+    summarize('searched for tetr',      SBOLQuery('tetr', limit=10).fetch_results())
     summarize('searched for tetr, cds', SBOLQuery('tetr', 'cds').fetch_results())
-
-    # this works, but takes a long time
-    #summarize('searched for None', SBOLQuery(None).fetch_results())
 
