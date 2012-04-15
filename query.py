@@ -120,6 +120,10 @@ class SBOLQuery(object):
 
         return tuples
 
+class SBOLPart(object):
+    def __init__(self, result_dict):
+        self.__dict__.update(result_dict)
+
 def summarize(message, results, max_shown=5):
     print
     print message
