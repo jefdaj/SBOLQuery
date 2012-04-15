@@ -14,10 +14,16 @@ from telescope.sparql.expressions import and_, or_
 from telescope.sparql.helpers     import RDF, RDFS
 from telescope.sparql.helpers     import is_a, v, op
 
+__all__ = []
+__all__.append('SBOLNode')
+__all__.append('SBOLQuery')
+__all__.append('SBOLPart')
+__all__.append('SBOL')
+__all__.append('REGISTRY')
+__all__.append('SBPKB')
+
 SBOL     = Namespace('http://sbols.org/sbol.owl#')
 REGISTRY = Namespace('http://partsregistry.org/#')
-
-SBPKB_URL = 'http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb'
 
 class SBOLQuery(object):
 
@@ -93,25 +99,29 @@ class SBOLQuery(object):
 
         return query.compile()
 
-    def fetch_results(self):
-        'Performs the query and returns results as tuples'
-        # todo return custom objects instead?
+class SBOLPart(object):
+    def __init__(self, result_dict):
+        self.__dict__.update(result_dict)
 
-        # compile query
-        query = self.build_query()
+class SBOLNode(object):
+    def __init__(self, server_url):
+        self.server = SPARQLWrapper(server_url)
+
+    def execute(self, query):
+        'Performs the query and returns results as tuples'
 
         # fetch JSON
-        sparql = SPARQLWrapper(SBPKB_URL)
-        sparql.setQuery(query)
-        sparql.setReturnFormat(JSON)
+        self.server.setQuery( query.build_query() )
+        self.server.setReturnFormat(JSON)
         try:
-            json = sparql.query().convert()
+            json = self.server.query().convert()
         except Exception, e:
             print e
             print query
             return []
 
         # process into tuples
+        # todo process into SBOLParts instead
         tuples = []
         for result in json["results"]["bindings"]:
             biobrickID       = result['name']['value']
@@ -120,9 +130,7 @@ class SBOLQuery(object):
 
         return tuples
 
-class SBOLPart(object):
-    def __init__(self, result_dict):
-        self.__dict__.update(result_dict)
+SBPKB = SBOLNode('http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb')
 
 def summarize(message, results, max_shown=5):
     print
@@ -141,7 +149,7 @@ def summarize(message, results, max_shown=5):
     print
 
 if __name__ == '__main__':
-    summarize('searched for None',      SBOLQuery(None, limit=100).fetch_results())
-    summarize('searched for tetr',      SBOLQuery('tetr', limit=10).fetch_results())
-    summarize('searched for tetr, cds', SBOLQuery('tetr', 'cds').fetch_results())
+    summarize('search: None',      SBPKB.execute(SBOLQuery(None, limit=100))  )
+    summarize('search: tetr',      SBPKB.execute(SBOLQuery('tetr', limit=10)) )
+    summarize('search: tetr, cds', SBPKB.execute(SBOLQuery('tetr', 'cds'))    )
 

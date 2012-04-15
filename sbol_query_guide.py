@@ -8,6 +8,7 @@ from sbol_query import SBPKBQuery, SBOL
 query = SBOLQuery()
 
 # optional: add a new namespace PREFIX
+# todo will this work without a new endpoint too?
 SO = Namespace('http://purl.obolibrary.org/obo/')
 query.PREFIX.append(SO)
 
