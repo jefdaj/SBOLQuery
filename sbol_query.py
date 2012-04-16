@@ -44,7 +44,6 @@ __all__.append('Variable')
 __all__.append('Operator')
 __all__.append('Literal' )
 
-
 ###########
 # classes
 ###########
@@ -76,6 +75,7 @@ class SBOLQuery(object):
         # todo write a guide to the Operator stuff
 
         # specify that each result must be an available SBOL Part
+        # todo mention that Operator.is_a == RDF.type
         self.WHERE.append((self.result, RDF.type,    SBOL.Part            ))
         self.WHERE.append((self.result, SBOL.status, Literal('Available') ))
 
@@ -94,19 +94,24 @@ class SBOLQuery(object):
         'Returns the query as a str'
         return self.compile_query()
 
-    def add_result_attribute(self, predicate, attr_name):
+    def map_attribute(self, rdf_predicate, attr_name):
         '''
-        Require each result pattern in the graph to have an edge like:
-        <self.result> <predicate> <variable>
-        and store variable as an attribute of the result object
+        Require each result pattern to have a triple like:
+            <?result> <rdf_predicate> <?attr_name>
+        and make <?attr_name> an attribute of the resulting SBOLPart.
+        For example:
+            query.map_attribute(SBOL.longDescription, 'long')
         '''
         var = Variable(attr_name)
         self.SELECT.append(var)
-        self.WHERE.append((self.result, predicate, var))
+        self.WHERE.append((self.result, rdf_predicate, var))
 
     def add_registry_type(self, registry_type):
-        'Adds a WHERE clause specifying the REGISTRY type of self.result'
-        self.add_part_attribute(RDF.type, URIRef(REGISTRY + registry_type))
+        'Adds a WHERE clause specifying the REGISTRY type of each result'
+
+        # using REGISTRY.registry_type would include 'registry_type'
+        # literally, so the URIRef is constructed manually instead
+        self.WHERE.append(( RDF.type, URIRef(REGISTRY + registry_type) ))
 
     def compile_query(self):
         'Builds the query and returns it as a str'
@@ -135,7 +140,7 @@ class SBOLNode(object):
         self.server = SPARQLWrapper(server_url)
 
     def execute(self, query):
-        'Performs the query and returns results as tuples'
+        'Performs the query and returns results as SBOLParts'
 
         # fetch JSON
         self.server.setQuery( query.compile_query() )
