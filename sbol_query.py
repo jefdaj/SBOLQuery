@@ -62,7 +62,7 @@ class SBOLQuery(object):
         self.result = Variable('result')
 
         # create query elements
-        self.SELECT = {}
+        self.SELECT = []
         self.WHERE  = []
         self.FILTER = []
         self.LIMIT  = limit
@@ -79,32 +79,30 @@ class SBOLQuery(object):
         self.WHERE.append((self.result, RDF.type,    SBOL.Part            ))
         self.WHERE.append((self.result, SBOL.status, Literal('Available') ))
 
-        # add name and short description variables to the results
-        self.SELECT['name' ] = Variable('name' )
-        self.SELECT['short'] = Variable('short')
+        # add a name variable to the results
+        name = Variable('name')
+        self.SELECT.append(name)
 
-        # specify that each result must have a name and short description,
-        # and that one of them must contain the keyword
-        self.WHERE.append((self.result, SBOL.name,             self.SELECT['name' ]))
-        self.WHERE.append((self.result, SBOL.shortDescription, self.SELECT['short']))
+        # specify that each result must have a name,
+        # and that it must contain the keyword
+        self.WHERE.append((self.result, SBOL.name, name))
         if keyword:
-            options = []
-            options.append( Operator.regex(self.SELECT['name' ], keyword, 'i') )
-            options.append( Operator.regex(self.SELECT['short'], keyword, 'i') )
-            self.FILTER.append( Operator.or_(*options) )
+            expr = Operator.regex(name, keyword, 'i')
+            self.FILTER.append(expr)
 
     def __str__(self):
         'Returns the query as a str'
         return self.compile_query()
 
-    def add_result_attribute(self, predicate, variable):
+    def add_result_attribute(self, predicate, attr_name):
         '''
         Require each result pattern in the graph to have an edge like:
         <self.result> <predicate> <variable>
         and store variable as an attribute of the result object
         '''
-        self.SELECT[attr_name] = Variable(attr_name)
-        self.WHERE.append((self.result, attr, self.SELECT[attr_name]))
+        var = Variable(attr_name)
+        self.SELECT.append(var)
+        self.WHERE.append((self.result, predicate, var))
 
     def add_registry_type(self, registry_type):
         'Adds a WHERE clause specifying the REGISTRY type of self.result'
@@ -114,7 +112,7 @@ class SBOLQuery(object):
         'Builds the query and returns it as a str'
 
         # start with a SELECT statement
-        query = Select(self.SELECT, limit=self.LIMIT)
+        query = Select(self.SELECT, limit=self.LIMIT, distinct=True)
 
         # add WHERE clauses
         for clause in self.WHERE:
@@ -189,6 +187,6 @@ def summarize(message, results, max_shown=5):
     print
 
 if __name__ == '__main__':
-    summarize('search: blank', SBPKB.execute( SBOLQuery()       ))
-    summarize('search: tetr',  SBPKB.execute( SBOLQuery('tetr') ))
+    summarize('search: blank', SBPKB.execute( SBOLQuery()        ))
+    summarize('search: B0010', SBPKB.execute( SBOLQuery('B0010') ))
 
