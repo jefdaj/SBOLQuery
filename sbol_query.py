@@ -51,7 +51,7 @@ __all__.append('Literal' )
 
 class SBOLQuery(object):
 
-    def __init__(self, keyword=None, limit=None):
+    def __init__(self, keyword=None, limit=100):
         'Creates the default query'
         # todo remove keyword
 
@@ -189,6 +189,6 @@ def summarize(message, results, max_shown=5):
     print
 
 if __name__ == '__main__':
-    summarize('search: blank', SBPKB.execute( SBOLQuery(limit=100) ))
-    summarize('search: tetr',  SBPKB.execute( SBOLQuery('tetr')    ))
+    summarize('search: blank', SBPKB.execute( SBOLQuery()       ))
+    summarize('search: tetr',  SBPKB.execute( SBOLQuery('tetr') ))
 
