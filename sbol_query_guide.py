@@ -15,7 +15,7 @@ query.PREFIX.append(SO)
 # optional: create a new SPARQL variable
 # and add it to the WHERE statement to define it
 # todo example using the SO namespace
-long_desc = Variable()
+long_desc = Variable('long')
 triple = (query.part, SBOL.longDescription, long_desc)
 query.WHERE.append(triple)
 
