@@ -35,8 +35,22 @@ class TestQueryResults(unittest.TestCase):
             self.assertTrue(hasattr(part, 'short'))
         self.assert_results_match_select_statement(query, results)
 
-    #def test_add_result_attribute(self):
-    #    'Check that SELECTing a new variable works'
+    def test_map_attribute(self):
+        'Check that map_attribute adds a variable correctly'
+
+        # build and execute the query
+        query = SBOLQuery()
+        query.map_attribute(SBOL.shortDescription, 'short_desc')
+        results = SBPKB.execute(query)
+
+        # check that short_desc is in the SELECT statement,
+        # and also made it into the resulting SBOLParts
+        for part in results:
+            self.assertTrue(hasattr(part, 'short_desc'))
+        self.assert_results_match_select_statement(query, results)
+
+    #def test_add_registry_type(self):
+    #    'Check that adding a REGISTRY type works'
 
     #def test_add_filter(self):
     #    'Check that FILTERing by an expression works'

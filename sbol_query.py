@@ -2,6 +2,7 @@
 # imports
 ###########
 
+import urllib2
 from rdflib import Namespace, Literal, URIRef
 from SPARQLWrapper import SPARQLWrapper, JSON
 
@@ -29,12 +30,13 @@ del is_a, and_, or_
 __all__ = []
 
 # classes defined here
-__all__.append('SBOLNode' )
-__all__.append('SBOLQuery')
-__all__.append('SBOLPart' )
+__all__.append('SBOLQuery' )
+__all__.append('SBOLResult')
+__all__.append('SBOLNode'  )
 
 # SBOLNode instances
-__all__.append('SBPKB' )
+__all__.append('ALL_NODES')
+__all__.append('SBPKB'    )
 
 # building blocks of SPARQL queries
 __all__.append('RDF'     )
@@ -98,7 +100,7 @@ class SBOLQuery(object):
         '''
         Require each result pattern to have a triple like:
             <?result> <rdf_predicate> <?attr_name>
-        and make <?attr_name> an attribute of the resulting SBOLPart.
+        and make <?attr_name> an attribute of the resulting SBOLResult.
         For example:
             query.map_attribute(SBOL.longDescription, 'long')
         '''
@@ -129,9 +131,9 @@ class SBOLQuery(object):
 
         return query.compile()
 
-class SBOLPart(object):
+class SBOLResult(object):
 
-    def __str__(self):
+    def __repr__(self):
         return '<%s %s>' % (self.__class__.__name__, self.__dict__)
 
 class SBOLNode(object):
@@ -139,8 +141,11 @@ class SBOLNode(object):
     def __init__(self, server_url):
         self.server = SPARQLWrapper(server_url)
 
+    def __repr__(self):
+        return "<%s '%s'>" % (self.__class__.__name__, self.server.baseURI)
+
     def execute(self, query):
-        'Performs the query and returns results as SBOLParts'
+        'Performs the query and returns results as SBOLResults'
 
         # fetch JSON
         self.server.setQuery( query.compile_query() )
@@ -152,15 +157,26 @@ class SBOLNode(object):
             print query
             return []
 
-        # process into SBOLParts
-        parts = []
-        for result in json['results']['bindings']:
-            part = SBOLPart()
-            for key in result:
-                part.__setattr__(key, result[key]['value'])
-            parts.append(part)
+        # process into SBOLResults
+        results = []
+        for binding in json['results']['bindings']:
+            result = SBOLResult()
+            for key in binding:
+                result.__setattr__(key, binding[key]['value'])
+            results.append(result)
 
-        return parts
+        return results
+
+#############
+# functions
+#############
+
+def list_known_nodes(index='http://index.sbolstandard.org/syndex.txt'):
+    'Create a list of all known SBOLNodes'
+    html = urllib2.urlopen(index).read()
+    urls = [url for url in html.split('\n') if len(url) > 0]
+    nodes = [SBOLNode(url) for url in urls]
+    return nodes
 
 #############
 # instances
@@ -169,29 +185,23 @@ class SBOLNode(object):
 SBOL     = Namespace('http://sbols.org/sbol.owl#')
 REGISTRY = Namespace('http://partsregistry.org/#')
 
-SBPKB = SBOLNode('http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb')
+# todo fix SBPkb address so it matches the working one
+ALL_NODES = [SBOLNode('http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb')]
+ALL_NODES += list_known_nodes()
 
-#############
-# utilities
-#############
+SBPKB = ALL_NODES[0]
 
-def summarize(message, results, max_shown=5):
-    print
-    print message
-
-    if len(results) == 0:
-        return
-    else:
-        if len(results) > max_shown:
-            print 'first %i results of %i:' % (max_shown, len(results))
-        else:
-            print '%i results:' % len(results)
-
-    for n in range(min(len(results), max_shown)):
-        print results[n]
-    print
+################
+# simple tests
+################
 
 if __name__ == '__main__':
-    summarize('search: blank', SBPKB.execute( SBOLQuery()        ))
-    summarize('search: B0010', SBPKB.execute( SBOLQuery('B0010') ))
+
+    print 'search: blank, limit=20'
+    for result in SBPKB.execute( SBOLQuery(limit=20) ):
+        print result
+
+    print 'search: B0010'
+    for result in SBPKB.execute( SBOLQuery('B0010')  ):
+        print result
 
