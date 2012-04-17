@@ -35,8 +35,8 @@ __all__.append('SBOLResult')
 __all__.append('SBOLNode'  )
 
 # SBOLNode instances
-__all__.append('ALL_NODES')
-__all__.append('SBPKB'    )
+__all__.append('SBPKB' )
+__all__.append('SBPKB2')
 
 # building blocks of SPARQL queries
 __all__.append('RDF'     )
@@ -185,11 +185,7 @@ def list_known_nodes(index='http://index.sbolstandard.org/syndex.txt'):
 SBOL     = Namespace('http://sbols.org/sbol.owl#')
 REGISTRY = Namespace('http://partsregistry.org/#')
 
-# todo fix SBPkb address so it matches the working one
-ALL_NODES = [SBOLNode('http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb')]
-ALL_NODES += list_known_nodes()
-
-SBPKB = ALL_NODES[0]
+SBPKB, SBPKB2 = list_known_nodes()[:2]
 
 ################
 # simple tests
