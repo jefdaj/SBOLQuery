@@ -18,10 +18,14 @@ from telescope.sparql.helpers    import op as Operator
 
 # hack to put all the operators in one place
 from telescope.sparql.helpers import is_a, and_, or_
+from telescope.sparql.helpers import asc, desc
 Operator.is_a = is_a
 Operator.and_ = and_
 Operator.or_  = or_
+Operator.asc  = asc
+Operator.desc = desc
 del is_a, and_, or_
+del asc, desc
 
 ###########
 # exports
@@ -66,6 +70,7 @@ class SBOLQuery(object):
         self.SELECT = []
         self.WHERE  = []
         self.FILTER = []
+        self.ORDER  = []
         self.LIMIT  = limit
 
         # set up the default query
@@ -119,7 +124,10 @@ class SBOLQuery(object):
         'Builds the query and returns it as a str'
 
         # start with a SELECT statement
-        query = Select(self.SELECT, limit=self.LIMIT, distinct=True)
+        kwargs = {'limit'    : self.LIMIT,
+                  'order_by' : self.ORDER,
+                  'distinct' : True}
+        query = Select(self.SELECT, **kwargs)
 
         # add WHERE clauses
         for clause in self.WHERE:
@@ -185,7 +193,14 @@ def list_known_nodes(index='http://index.sbolstandard.org/syndex.txt'):
 SBOL     = Namespace('http://sbols.org/sbol.owl#')
 REGISTRY = Namespace('http://partsregistry.org/#')
 
-SBPKB, SBPKB2 = list_known_nodes()[:2]
+try:
+    # fetch nodes from sbolstandard.org
+    known_nodes = list_known_nodes()
+except urllib2.URLError:
+    # update failed; use default
+    known_nodes = [None, None]
+
+SBPKB, SBPKB2 = known_nodes[:2]
 
 ################
 # simple tests
