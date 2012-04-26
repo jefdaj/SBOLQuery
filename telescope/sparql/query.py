@@ -1,5 +1,5 @@
-from .patterns import GroupGraphPattern
-from .util import to_variable, to_list
+from telescope.sparql.patterns import GroupGraphPattern
+from telescope.sparql.util import to_variable, to_list
 
 __all__ = ['SPARQLQuery', 'SolutionModifierSupportingQuery',
            'ProjectionSupportingQuery']

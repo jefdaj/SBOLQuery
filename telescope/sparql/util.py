@@ -1,8 +1,8 @@
 try:
-    from ...rdflib import Variable
+    from rdflib import Variable
 except ImportError:
-    from ...rdflib.term import Variable
-from .expressions import Expression
+    from rdflib.term import Variable
+from telescope.sparql.expressions import Expression
 
 def defrag(uri, prefix_map=None):
     if prefix_map is None:

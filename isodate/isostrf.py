@@ -36,8 +36,8 @@ conforming strings.
 import re
 from datetime import date, timedelta
 
-from .duration import Duration
-from .isotzinfo import tz_isoformat
+from isodate.duration import Duration
+from isodate.isotzinfo import tz_isoformat
 
 # Date specific format strings
 DATE_BAS_COMPLETE = '%Y%m%d'

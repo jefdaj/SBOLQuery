@@ -1,5 +1,5 @@
 from __future__ import generators
-from .py3compat import format_doctest_out
+from rdflib.py3compat import format_doctest_out
 
 __doc__ = format_doctest_out("""
 ===================
@@ -71,7 +71,7 @@ import os
 from urlparse import urljoin, urldefrag
 from urllib import pathname2url
 
-from .term import URIRef, Variable, _XSD_PFX
+from rdflib.term import URIRef, Variable, _XSD_PFX
 
 __all__ = ['is_ncname', 'split_uri', 'Namespace', 'NamespaceDict', 'ClosedNamespace', 'NamespaceManager']
 

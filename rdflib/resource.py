@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import py3compat
+from rdflib import py3compat
 __doc__ = py3compat.format_doctest_out("""
 The ``Resource`` class wraps a ``Graph`` and a resource reference (i.e. an
 ``URIRef`` or ``BNode``), to support a resource oriented way of working with a
@@ -288,8 +288,8 @@ objects::
 
 """)
 
-from .term import BNode, URIRef
-from .namespace import RDF
+from rdflib.term import BNode, URIRef
+from rdflib.namespace import RDF
 
 __all__ = ['Resource']
 

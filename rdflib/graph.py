@@ -160,7 +160,7 @@ except ImportError:
 #     """ 
 #     Default DESCRIBE returns all incomming and outgoing statements about the given terms 
 #     """
-#     from .sparql.sparqlOperators import getValue
+#     from rdflib.sparql.sparqlOperators import getValue
 #     g=Graph()
 #     terms=[getValue(i)(bindings) for i in terms]
 #     for s,p,o in graph.triples_choices((terms,None,None)):
@@ -169,23 +169,23 @@ except ImportError:
 #         g.add((s,p,o))
 #     return g
 
-from .namespace import RDF, RDFS, SKOS
+from rdflib.namespace import RDF, RDFS, SKOS
 
-from . import plugin, exceptions, query
+from rdflib import plugin, exceptions, query
 #, sparql
 
-from .term import Node
-from .term import URIRef
-from .term import BNode
-from .term import Literal # required for doctests
-from .namespace import Namespace # required for doctests
-from .store import Store
-from .serializer import Serializer
-from .parser import Parser
-from .parser import create_input_source
-from .namespace import NamespaceManager
-from .resource import Resource
-from . import py3compat
+from rdflib.term import Node
+from rdflib.term import URIRef
+from rdflib.term import BNode
+from rdflib.term import Literal # required for doctests
+from rdflib.namespace import Namespace # required for doctests
+from rdflib.store import Store
+from rdflib.serializer import Serializer
+from rdflib.parser import Parser
+from rdflib.parser import create_input_source
+from rdflib.namespace import NamespaceManager
+from rdflib.resource import Resource
+from rdflib import py3compat
 b = py3compat.b
 
 import tempfile, shutil, os
@@ -649,7 +649,7 @@ class Graph(Node):
         Generates transitive closure of a user-defined 
         function against the graph
         
-        >>> from .collection import Collection
+        >>> from rdflib.collection import Collection
         >>> g=Graph()
         >>> a=BNode('foo')
         >>> b=BNode('bar')
@@ -1213,7 +1213,7 @@ class BackwardCompatGraph(ConjunctiveGraph):
 
     def __init__(self, backend='default'):
         warnings.warn("Use ConjunctiveGraph instead. "
-                      "( from .graph import ConjunctiveGraph )",
+                      "( from rdflib.graph import ConjunctiveGraph )",
                       DeprecationWarning, stacklevel=2)
         super(BackwardCompatGraph, self).__init__(store=backend)
 

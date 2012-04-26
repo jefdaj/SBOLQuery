@@ -35,8 +35,8 @@ implementation, which does not support dates before 0001-01-01.
 import re
 from datetime import date, timedelta
 
-from .isostrf import strftime, DATE_EXT_COMPLETE
-from .isoerror import ISO8601Error
+from isodate.isostrf import strftime, DATE_EXT_COMPLETE
+from isodate.isoerror import ISO8601Error
 
 DATE_REGEX_CACHE = {}
 # A dictionary to cache pre-compiled regular expressions.
