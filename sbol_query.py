@@ -61,9 +61,6 @@ class SBOLQuery(object):
         # todo remove keyword
 
         # create the result variable
-        # this doesn't go in the SELECT statement
-        # beacuse it represents the result itself
-        # (rather than one of its attributes)
         self.result = Variable('result')
 
         # create query elements
@@ -120,7 +117,8 @@ class SBOLQuery(object):
 
         # using REGISTRY.registry_type would include 'registry_type'
         # literally, so the URIRef is constructed manually instead
-        self.WHERE.append(( RDF.type, URIRef(REGISTRY + registry_type) ))
+        ref = URIRef(REGISTRY + registry_type)
+        self.WHERE.append((self.result, RDF.type, ref))
 
     def compile_query(self):
         'Builds the query and returns it as a str'
@@ -140,8 +138,8 @@ class SBOLQuery(object):
             query = query.where(clause, optional=True)
 
         # add FILTER clauses
-        for clause in self.FILTER:
-            query = query.filter(clause)
+        for expression in self.FILTER:
+            query = query.filter(expression)
 
         return query.compile()
 
@@ -197,7 +195,7 @@ def list_known_nodes(index='http://index.sbolstandard.org/syndex.txt'):
 #############
 
 SBOL     = Namespace('http://sbols.org/sbol.owl#')
-REGISTRY = Namespace('http://partsregistry.org/#')
+REGISTRY = Namespace('http://partsregistry.org/#') # todo remove the #?
 
 try:
     # fetch nodes from sbolstandard.org
