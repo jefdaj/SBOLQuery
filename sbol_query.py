@@ -67,11 +67,12 @@ class SBOLQuery(object):
         self.result = Variable('result')
 
         # create query elements
-        self.SELECT = []
-        self.WHERE  = []
-        self.FILTER = []
-        self.ORDER  = []
-        self.LIMIT  = limit
+        self.SELECT   = []
+        self.WHERE    = []
+        self.FILTER   = []
+        self.OPTIONAL = []
+        self.ORDER    = []
+        self.LIMIT    = limit
 
         # set up the default query
         self.add_default_restrictions(keyword)
@@ -80,6 +81,7 @@ class SBOLQuery(object):
         'Add generic WHERE and FILTER clauses'
         # todo remove keyword
         # todo write a guide to the Operator stuff
+        # todo remove the entire default query?
 
         # specify that each result must be an available SBOL Part
         # todo mention that Operator.is_a == RDF.type
@@ -132,6 +134,10 @@ class SBOLQuery(object):
         # add WHERE clauses
         for clause in self.WHERE:
             query = query.where(clause)
+
+        # add optional WHERE clauses
+        for clause in self.OPTIONAL:
+            query = query.where(clause, optional=True)
 
         # add FILTER clauses
         for clause in self.FILTER:
@@ -197,8 +203,9 @@ try:
     # fetch nodes from sbolstandard.org
     known_nodes = list_known_nodes()
 except urllib2.URLError:
-    # update failed; use default
-    known_nodes = [None, None]
+    # update failed; use defaults
+    known_nodes = [SBOLNode('http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb'),
+                   SBOLNode('http://sbpkb2.sbols.org')]
 
 SBPKB, SBPKB2 = known_nodes[:2]
 
