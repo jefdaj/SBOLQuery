@@ -487,9 +487,9 @@ class QueryResult :
         @rtype: RDFLib Graph
         """
         try:
-            from rdflib.graph import ConjunctiveGraph
+            from ..rdflib.graph import ConjunctiveGraph
         except ImportError:
-            from rdflib import ConjunctiveGraph
+            from ..rdflib import ConjunctiveGraph
         retval = ConjunctiveGraph()
         # this is a strange hack. If the publicID is not set, rdflib (or the underlying xml parser) makes a funny
         #(and, as far as I could see, meaningless) error message...

@@ -125,10 +125,10 @@ class UnionGraphPattern(GraphPattern):
 # Helpers. Normally imported from telescope.sparql.helpers.
 
 def union(*patterns):
-    from telescope.sparql.patterns import UnionGraphPattern, GraphPattern
+    from .patterns import UnionGraphPattern, GraphPattern
     return UnionGraphPattern(map(GraphPattern.from_obj, patterns))
 
 def optional(*patterns):
-    from telescope.sparql.patterns import GroupGraphPattern
+    from .patterns import GroupGraphPattern
     return GroupGraphPattern(patterns, optional=True)
 
