@@ -141,7 +141,7 @@ class SBOLQuery(object):
             query = query.where(clause)
 
         if self.available_only:
-            self.WHERE.append((self.result, SBOL.status, Literal('Available') ))
+            query = query.where(( self.result, SBOL.status, Literal('Available') ))
 
         # add optional WHERE clauses
         for clause in self.OPTIONAL:
