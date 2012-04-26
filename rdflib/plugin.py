@@ -23,11 +23,11 @@ See the `setuptools dynamic discovery of services and plugins`__ for more inform
 
 """
 
-from rdflib.store import Store
-from rdflib.parser import Parser
-from rdflib.serializer import Serializer
-from rdflib.query import ResultParser, ResultSerializer
-from rdflib.exceptions import Error
+from .store import Store
+from .parser import Parser
+from .serializer import Serializer
+from .query import ResultParser, ResultSerializer
+from .exceptions import Error
 
 __all__ = ['register', 'get', 'plugins', 'PluginException', 'Plugin', 'PKGPlugin']
 

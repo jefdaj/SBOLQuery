@@ -29,7 +29,7 @@ import base64
 import re
 import jsonlayer
 import warnings
-from SPARQLWrapper import __agent__
+from . import __agent__
 from SPARQLExceptions import QueryBadFormed, EndPointNotFound, EndPointInternalError
 from SPARQLUtils import deprecated
 from KeyCaseInsensitiveDict import KeyCaseInsensitiveDict

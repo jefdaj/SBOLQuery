@@ -33,10 +33,10 @@ format timedelta or Duration instances as ISO conforming strings.
 from datetime import timedelta
 import re
 
-from isodate.duration import Duration
-from isodate.isoerror import ISO8601Error
-from isodate.isodatetime import parse_datetime
-from isodate.isostrf import strftime, D_DEFAULT
+from .duration import Duration
+from .isoerror import ISO8601Error
+from .isodatetime import parse_datetime
+from .isostrf import strftime, D_DEFAULT
 
 ISO8601_PERIOD_REGEX = re.compile(r"^(?P<sign>[+-])?"
                 r"P(?P<years>[0-9]+([,.][0-9]+)?Y)?"

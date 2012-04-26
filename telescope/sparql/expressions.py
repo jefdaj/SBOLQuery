@@ -1,7 +1,7 @@
 import weakref
 import operator
 try:
-    from rdflib import Variable
+    from ...rdflib import Variable
 except ImportError:
     from rdflib.term import Variable
 

@@ -1,11 +1,11 @@
 import operator
 try:
-    from rdflib import Namespace
+    from ...rdflib import Namespace
 except ImportError:
-    from rdflib.term import Namespace
-from telescope.sparql.expressions import VariableExpressionConstructor, and_, or_
-from telescope.sparql.operators import Operator, BuiltinOperatorConstructor
-from telescope.sparql.patterns import union, optional, TriplesSameSubject
+    from ...rdflib.term import Namespace
+from .expressions import VariableExpressionConstructor, and_, or_
+from .operators import Operator, BuiltinOperatorConstructor
+from .patterns import union, optional, TriplesSameSubject
 
 __all__ = ['RDF', 'RDFS', 'OWL', 'XSD', 'FN', 'is_a', 'v', 'op', 'fn', 'asc',
            'desc', 'and_', 'or_', 'union', 'optional']
