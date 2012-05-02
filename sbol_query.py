@@ -3,7 +3,7 @@
 ###########
 
 import urllib2
-from rdflib import Namespace, Literal, URIRef
+from rdflib import Namespace, Literal, URIRef, BNode, URIRef
 from SPARQLWrapper import SPARQLWrapper, JSON
 
 # there's a lot of useful stuff in this package,
@@ -12,7 +12,7 @@ from SPARQLWrapper import SPARQLWrapper, JSON
 #     http://code.google.com/p/telescope/wiki/QueryBuilderDesign
 #
 from telescope.sparql.queryforms import Select
-from telescope.sparql.helpers    import RDF
+from telescope.sparql.helpers    import RDF, RDFS
 from telescope.sparql.helpers    import v  as Variable
 from telescope.sparql.helpers    import op as Operator
 
@@ -44,9 +44,12 @@ __all__.append('SBPKB2')
 
 # building blocks of SPARQL queries
 __all__.append('RDF'     )
+__all__.append('RDFS'    )
 __all__.append('SBOL'    )
 __all__.append('REGISTRY')
 __all__.append('Variable')
+__all__.append('BNode'   )
+__all__.append('URIRef'  )
 __all__.append('Operator')
 __all__.append('Literal' )
 
@@ -56,22 +59,23 @@ __all__.append('Literal' )
 
 class SBOLQuery(object):
 
-    def __init__(self, keyword=None, limit=100):
+    def __init__(self, keyword=None, limit=1000):
         'Creates the default query'
         # todo remove keyword
 
         # create the result variable
-        # this doesn't go in the SELECT statement
-        # beacuse it represents the result itself
-        # (rather than one of its attributes)
         self.result = Variable('result')
 
         # create query elements
-        self.SELECT = []
-        self.WHERE  = []
-        self.FILTER = []
-        self.ORDER  = []
-        self.LIMIT  = limit
+        self.SELECT   = []
+        self.HIDDEN   = [] # variables to keep around but not display
+        self.WHERE    = []
+        self.FILTER   = []
+        self.OPTIONAL = []
+        self.ORDER    = []
+        self.LIMIT    = limit
+
+        self.available_only = True
 
         # set up the default query
         self.add_default_restrictions(keyword)
@@ -80,14 +84,14 @@ class SBOLQuery(object):
         'Add generic WHERE and FILTER clauses'
         # todo remove keyword
         # todo write a guide to the Operator stuff
+        # todo remove the entire default query?
 
         # specify that each result must be an available SBOL Part
         # todo mention that Operator.is_a == RDF.type
         self.WHERE.append((self.result, RDF.type,    SBOL.Part            ))
-        self.WHERE.append((self.result, SBOL.status, Literal('Available') ))
 
         # add a name variable to the results
-        name = Variable('name')
+        name = Variable('name') # todo finish renaming
         self.SELECT.append(name)
 
         # specify that each result must have a name,
@@ -101,7 +105,7 @@ class SBOLQuery(object):
         'Returns the query as a str'
         return self.compile_query()
 
-    def map_attribute(self, rdf_predicate, attr_name):
+    def map_attribute(self, rdf_predicate, attr_name, optional=False):
         '''
         Require each result pattern to have a triple like:
             <?result> <rdf_predicate> <?attr_name>
@@ -111,14 +115,19 @@ class SBOLQuery(object):
         '''
         var = Variable(attr_name)
         self.SELECT.append(var)
-        self.WHERE.append((self.result, rdf_predicate, var))
+        if optional:
+            destination = self.OPTIONAL
+        else:
+            destination = self.WHERE
+        destination.append((self.result, rdf_predicate, var))
 
     def add_registry_type(self, registry_type):
         'Adds a WHERE clause specifying the REGISTRY type of each result'
 
         # using REGISTRY.registry_type would include 'registry_type'
         # literally, so the URIRef is constructed manually instead
-        self.WHERE.append(( RDF.type, URIRef(REGISTRY + registry_type) ))
+        ref = URIRef(REGISTRY + registry_type)
+        self.WHERE.append((self.result, RDF.type, ref))
 
     def compile_query(self):
         'Builds the query and returns it as a str'
@@ -133,9 +142,16 @@ class SBOLQuery(object):
         for clause in self.WHERE:
             query = query.where(clause)
 
+        if self.available_only:
+            query = query.where(( self.result, SBOL.status, Literal('Available') ))
+
+        # add optional WHERE clauses
+        for clause in self.OPTIONAL:
+            query = query.where(clause, optional=True)
+
         # add FILTER clauses
-        for clause in self.FILTER:
-            query = query.filter(clause)
+        for expression in self.FILTER:
+            query = query.filter(expression)
 
         return query.compile()
 
@@ -191,14 +207,15 @@ def list_known_nodes(index='http://index.sbolstandard.org/syndex.txt'):
 #############
 
 SBOL     = Namespace('http://sbols.org/sbol.owl#')
-REGISTRY = Namespace('http://partsregistry.org/#')
+REGISTRY = Namespace('http://partsregistry.org/#') # todo remove the #?
 
 try:
     # fetch nodes from sbolstandard.org
     known_nodes = list_known_nodes()
 except urllib2.URLError:
-    # update failed; use default
-    known_nodes = [None, None]
+    # update failed; use defaults
+    known_nodes = [SBOLNode('http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb'),
+                   SBOLNode('http://sbpkb2.sbols.org')]
 
 SBPKB, SBPKB2 = known_nodes[:2]
 
