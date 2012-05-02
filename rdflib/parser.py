@@ -24,9 +24,9 @@ from xml.sax import xmlreader
 from xml.sax.saxutils import prepare_input_source
 import types
 
-from rdflib import __version__
-from rdflib.term import URIRef
-from rdflib.namespace import Namespace
+from . import __version__
+from .term import URIRef
+from .namespace import Namespace
 
 __all__ = ['Parser', 'InputSource', 'StringInputSource', 'URLInputSource', 'FileInputSource']
 

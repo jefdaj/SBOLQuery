@@ -46,7 +46,7 @@ from string import ascii_letters
 from random import choice
 from itertools import islice
 from datetime import date, time, datetime
-from isodate import parse_time, parse_date, parse_datetime
+from ..isodate import parse_time, parse_date, parse_datetime
 
 try:
     from hashlib import md5

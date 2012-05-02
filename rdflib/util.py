@@ -48,15 +48,15 @@ except NameError:
 else:
     def sign(n): return cmp(n, 0)
 
-from rdflib.exceptions import ContextTypeError
-from rdflib.exceptions import ObjectTypeError
-from rdflib.exceptions import PredicateTypeError
-from rdflib.exceptions import SubjectTypeError
-from rdflib.graph import Graph
-from rdflib.graph import QuotedGraph
-from rdflib.term import BNode
-from rdflib.term import Literal
-from rdflib.term import URIRef
+from .exceptions import ContextTypeError
+from .exceptions import ObjectTypeError
+from .exceptions import PredicateTypeError
+from .exceptions import SubjectTypeError
+from .graph import Graph
+from .graph import QuotedGraph
+from .term import BNode
+from .term import Literal
+from .term import URIRef
 
 __all__ = ['list2set', 'first', 'uniq', 'more_than', 'to_term', 'from_n3','date_time', 'parse_date_time', 'check_context', 'check_subject', 'check_predicate', 'check_object', 'check_statement', 'check_pattern']
 

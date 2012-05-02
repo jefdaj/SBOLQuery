@@ -91,7 +91,7 @@ class SBOLQuery(object):
         self.WHERE.append((self.result, RDF.type,    SBOL.Part            ))
 
         # add a name variable to the results
-        name = Variable('name') # todo finish renaming
+        name = Variable('name')
         self.SELECT.append(name)
 
         # specify that each result must have a name,

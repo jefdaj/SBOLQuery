@@ -34,7 +34,7 @@ CORRUPTED_STORE = 0
 NO_STORE        = -1
 UNKNOWN         = None
 
-from rdflib.events import Dispatcher, Event
+from .events import Dispatcher, Event
 
 __all__ = ['StoreCreatedEvent', 'TripleAddedEvent', 'TripleRemovedEvent', 'NodePickler', 'Store']
 
@@ -122,12 +122,12 @@ class Store(object):
 
     def __get_node_pickler(self):
         if self.__node_pickler is None:
-            from rdflib.term import URIRef
-            from rdflib.term import BNode
-            from rdflib.term import Literal
-            from rdflib.graph import Graph, QuotedGraph, GraphValue
-            from rdflib.term import Variable
-            from rdflib.term import Statement
+            from .term import URIRef
+            from .term import BNode
+            from .term import Literal
+            from .graph import Graph, QuotedGraph, GraphValue
+            from .term import Variable
+            from .term import Statement
             self.__node_pickler = np = NodePickler()
             np.register(self, "S")
             np.register(URIRef, "U")

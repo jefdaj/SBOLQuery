@@ -1,9 +1,9 @@
 import weakref
 import operator
 try:
-    from rdflib import Variable
+    from ...rdflib import Variable
 except ImportError:
-    from rdflib.term import Variable
+    from ...rdflib.term import Variable
 
 __all__ = ['Expression', 'BinaryExpression', 'ConditionalExpression',
            'VariableExpressionConstructor', 'and_', 'or_']
@@ -47,7 +47,7 @@ class Expression(object):
         return self._clone(datatype=datatype)
     
     def compile(self, prefix_map=None):
-        from telescope.sparql.compiler import ExpressionCompiler
+        from .compiler import ExpressionCompiler
         return ExpressionCompiler(prefix_map).compile(self)
 
     # Special operators.
@@ -136,7 +136,7 @@ class VariableExpression(Expression):
             self._initialized = True
     
     def __getitem__(self, predicate_object_list):
-        from telescope.sparql.patterns import TriplesSameSubject
+        from .patterns import TriplesSameSubject
         return TriplesSameSubject(self)[predicate_object_list]
 
 class VariableExpressionConstructor(object):
