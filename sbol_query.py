@@ -75,7 +75,7 @@ class SBOLQuery(object):
         self.ORDER    = []
         self.LIMIT    = limit
 
-        self.available_only = True
+        #self.available_only = True
 
         # set up the default query
         self.add_default_restrictions(keyword)
@@ -86,9 +86,9 @@ class SBOLQuery(object):
         # todo write a guide to the Operator stuff
         # todo remove the entire default query?
 
-        # specify that each result must be an available SBOL Part
+        # specify that each result must be an SBOL DNA component
         # todo mention that Operator.is_a == RDF.type
-        self.WHERE.append((self.result, RDF.type,    SBOL.Part            ))
+        self.WHERE.append((self.result, RDF.type, SBOL.DnaComponent))
 
         # add a name variable to the results
         name = Variable('name')
@@ -96,7 +96,7 @@ class SBOLQuery(object):
 
         # specify that each result must have a name,
         # and that it must contain the keyword
-        self.WHERE.append((self.result, SBOL.name, name))
+        self.WHERE.append((self.result, SBOL.displayId, name))
         if keyword:
             expr = Operator.regex(name, keyword, 'i')
             self.FILTER.append(expr)
@@ -142,8 +142,9 @@ class SBOLQuery(object):
         for clause in self.WHERE:
             query = query.where(clause)
 
-        if self.available_only:
-            query = query.where(( self.result, SBOL.status, Literal('Available') ))
+        # todo put this back once SBPkb2 has sbol:status
+        #if self.available_only:
+        #    query = query.where(( self.result, SBOL.status, Literal('Available') ))
 
         # add optional WHERE clauses
         for clause in self.OPTIONAL:
@@ -206,18 +207,19 @@ def list_known_nodes(index='http://index.sbolstandard.org/syndex.txt'):
 # instances
 #############
 
-SBOL     = Namespace('http://sbols.org/sbol.owl#')
+SBOL     = Namespace('http://sbols.org/v1#')
 REGISTRY = Namespace('http://partsregistry.org/#') # todo remove the #?
 
-try:
-    # fetch nodes from sbolstandard.org
-    known_nodes = list_known_nodes()
-except urllib2.URLError:
-    # update failed; use defaults
-    known_nodes = [SBOLNode('http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb'),
-                   SBOLNode('http://sbpkb2.sbols.org')]
+#try:
+#    # fetch nodes from sbolstandard.org
+#    known_nodes = list_known_nodes()
+#except urllib2.URLError:
+#    # update failed; use defaults
+#    known_nodes = [SBOLNode('http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb'),
+#                   SBOLNode('http://sbpkb2.sbols.org')]
 
-SBPKB, SBPKB2 = known_nodes[:2]
+SBOL   = SBOLNode('http://sbpkb2.sbols.org/sbol/query'  )
+SBPKB2 = SBOLNode('http://sbpkb2.sbols.org/sbpkb2/query')
 
 ################
 # simple tests
