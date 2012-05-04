@@ -39,7 +39,6 @@ __all__.append('SBOLResult')
 __all__.append('SBOLNode'  )
 
 # SBOLNode instances
-__all__.append('SBPKB' )
 __all__.append('SBPKB2')
 
 # building blocks of SPARQL queries
@@ -169,6 +168,9 @@ class SBOLNode(object):
     def __repr__(self):
         return "<%s '%s'>" % (self.__class__.__name__, self.server.baseURI)
 
+    def login(self, username, password):
+        self.server.setCredentials(username, password)
+
     def execute(self, query):
         'Performs the query and returns results as SBOLResults'
 
@@ -208,30 +210,26 @@ def list_known_nodes(index='http://index.sbolstandard.org/syndex.txt'):
 #############
 
 SBOL     = Namespace('http://sbols.org/v1#')
-REGISTRY = Namespace('http://partsregistry.org/#') # todo remove the #?
+REGISTRY = Namespace('http://partsregistry.org/#')
 
-#try:
-#    # fetch nodes from sbolstandard.org
-#    known_nodes = list_known_nodes()
-#except urllib2.URLError:
-#    # update failed; use defaults
-#    known_nodes = [SBOLNode('http://sbpkb.sbolstandard.org/openrdf-sesame/repositories/SBPkb'),
-#                   SBOLNode('http://sbpkb2.sbols.org')]
-
-SBOL   = SBOLNode('http://sbpkb2.sbols.org/sbol/query'  )
-SBPKB2 = SBOLNode('http://sbpkb2.sbols.org/sbpkb2/query')
+SBPKB2 = SBOLNode('http://sbpkb2.sbols.org:8989/sbpkb2/query')
+SBPKB2.login('anonymous', 'anonymous')
 
 ################
 # simple tests
 ################
 
-if __name__ == '__main__':
-
+def test_blank():
     print 'search: blank, limit=20'
-    for result in SBPKB.execute( SBOLQuery(limit=20) ):
+    for result in SBPKB2.execute( SBOLQuery(limit=20) ):
         print result
 
+def test_specific():
     print 'search: B0010'
-    for result in SBPKB.execute( SBOLQuery('B0010')  ):
+    for result in SBPKB2.execute( SBOLQuery('B0010')  ):
         print result
+
+if __name__ == '__main__':
+    test_blank()
+    test_specific()
 
