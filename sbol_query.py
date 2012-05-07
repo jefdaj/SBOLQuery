@@ -1,10 +1,13 @@
-###########
-# imports
-###########
+__all__ = (
+    'RDF', 'RDFS', 'REGISTRY', 'SBOL',
+    'Variable', 'BNode', 'URIRef', 'Operator', 'Literal',
+    'SBOLQuery', 'SBOLResult', 'SBOLNode',
+    'SBPKB2')
 
 import urllib2
 from rdflib import Namespace, Literal, URIRef, BNode, URIRef
 from SPARQLWrapper import SPARQLWrapper, JSON
+from SPARQLWrapper.Wrapper import QueryResult
 
 # there's a lot of useful stuff in this package,
 # but it can be hard to find. see these pages:
@@ -27,90 +30,86 @@ Operator.desc = desc
 del is_a, and_, or_
 del asc, desc
 
-###########
-# exports
-###########
+SBOL     = Namespace('http://sbols.org/v1#')
+REGISTRY = Namespace('http://partsregistry.org/#')
 
-__all__ = []
+class SBOLQuery(Select):
 
-# classes defined here
-__all__.append('SBOLQuery' )
-__all__.append('SBOLResult')
-__all__.append('SBOLNode'  )
-
-# SBOLNode instances
-__all__.append('SBPKB2')
-
-# building blocks of SPARQL queries
-__all__.append('RDF'     )
-__all__.append('RDFS'    )
-__all__.append('SBOL'    )
-__all__.append('REGISTRY')
-__all__.append('Variable')
-__all__.append('BNode'   )
-__all__.append('URIRef'  )
-__all__.append('Operator')
-__all__.append('Literal' )
-
-###########
-# classes
-###########
-
-class SBOLQuery(object):
-
-    def __init__(self, keyword=None, limit=1000):
-        'Creates the default query'
-        # todo remove keyword
-
-        # create the result variable
-        self.result = Variable('result')
+    # todo remove keyword
+    def __init__(self, keyword=None, limit=500):
 
         # create query elements
+        # to be processed during compilation
         self.SELECT   = []
-        self.HIDDEN   = [] # variables to keep around but not display
         self.WHERE    = []
-        self.FILTER   = []
         self.OPTIONAL = []
-        self.ORDER    = []
+        self.FILTER   = []
+        self.DISTINCT = True
         self.LIMIT    = limit
+        self.ORDER_BY = None # todo order by Id
 
-        #self.available_only = True
+        # create the result variable
+        # this one is special because it represents
+        # the result object itself, rather than one
+        # of its attributes
+        self.result = Variable('result')
 
         # set up the default query
-        self.add_default_restrictions(keyword)
-
-    def add_default_restrictions(self, keyword=None):
-        'Add generic WHERE and FILTER clauses'
-        # todo remove keyword
-        # todo write a guide to the Operator stuff
-        # todo remove the entire default query?
-
-        # specify that each result must be an SBOL DNA component
-        # todo mention that Operator.is_a == RDF.type
+        display_id = Variable('displayId')
+        self.SELECT.append(display_id)
+        Select.__init__(self, self.SELECT)
+        self.WHERE.append((self.result, SBOL.displayId, display_id))
         self.WHERE.append((self.result, RDF.type, SBOL.DnaComponent))
+        #self.available_only = True
 
-        # add a name variable to the results
-        name = Variable('name')
-        self.SELECT.append(name)
+    def compile(self):
+        'Builds the query and returns it as a str'
 
-        # specify that each result must have a name,
-        # and that it must contain the keyword
-        self.WHERE.append((self.result, SBOL.displayId, name))
-        if keyword:
-            expr = Operator.regex(name, keyword, 'i')
-            self.FILTER.append(expr)
+        # To make all the query customizations reversible,
+        # this copies them to a new instance and compiles that.
+        query = self._clone(_limit=self.LIMIT,
+                            _order_by=self.ORDER_BY,
+                            _distinct=self.DISTINCT)
+
+        # todo put this back once SBPkb2 has sbol:status
+        #if self.available_only:
+        #    query = query.where(( self.result, SBOL.status, Literal('Available') ))
+
+        # add each stored graph pattern
+        for clause in self.WHERE:
+            query = query.where(clause)
+        for clause in self.OPTIONAL:
+            query = query.where(clause, optional=True)
+        for expression in self.FILTER:
+            query = query.filter(expression)
+
+        # compile to a str
+        return Select.compile(query)
+
+    def __repr__(self):
+        return '<%s %s>' % (self.__class__.__name__, self.__dict__)
 
     def __str__(self):
-        'Returns the query as a str'
-        return self.compile_query()
+        return self.compile()
 
-    def map_attribute(self, rdf_predicate, attr_name, optional=False):
+    def add_keyword(self, keyword, variables=None):
+        'Require one Variable to contain the keyword'
+
+        if not variables:
+            variables = self.SELECT
+
+        regexes = []
+        for var in variables:
+            regexes.append( Operator.regex(var, keyword, 'i') )
+        self.FILTER.append( Operator.or_(*regexes) )
+
+    def add_attribute(self, rdf_predicate, attr_name, optional=False):
         '''
         Require each result pattern to have a triple like:
             <?result> <rdf_predicate> <?attr_name>
         and make <?attr_name> an attribute of the resulting SBOLResult.
         For example:
-            query.map_attribute(SBOL.longDescription, 'long')
+            query.add_attribute(SBOL.longDescription, 'long')
         '''
         var = Variable(attr_name)
         self.SELECT.append(var)
@@ -120,6 +119,7 @@ class SBOLQuery(object):
             destination = self.WHERE
         destination.append((self.result, rdf_predicate, var))
 
+    # todo change to add_so_type
     def add_registry_type(self, registry_type):
         'Adds a WHERE clause specifying the REGISTRY type of each result'
 
@@ -128,108 +128,43 @@ class SBOLQuery(object):
         ref = URIRef(REGISTRY + registry_type)
         self.WHERE.append((self.result, RDF.type, ref))
 
-    def compile_query(self):
-        'Builds the query and returns it as a str'
+    # todo add so_type as an optional default attribute
 
-        # start with a SELECT statement
-        kwargs = {'limit'    : self.LIMIT,
-                  'order_by' : self.ORDER,
-                  'distinct' : True}
-        query = Select(self.SELECT, **kwargs)
+class SBOLResult(QueryResult):
 
-        # add WHERE clauses
-        for clause in self.WHERE:
-            query = query.where(clause)
-
-        # todo put this back once SBPkb2 has sbol:status
-        #if self.available_only:
-        #    query = query.where(( self.result, SBOL.status, Literal('Available') ))
-
-        # add optional WHERE clauses
-        for clause in self.OPTIONAL:
-            query = query.where(clause, optional=True)
-
-        # add FILTER clauses
-        for expression in self.FILTER:
-            query = query.filter(expression)
-
-        return query.compile()
-
-class SBOLResult(object):
-
-    def __repr__(self):
-        return '<%s %s>' % (self.__class__.__name__, self.__dict__)
-
-class SBOLNode(object):
-
-    def __init__(self, server_url):
-        self.server = SPARQLWrapper(server_url)
-
-    def __repr__(self):
-        return "<%s '%s'>" % (self.__class__.__name__, self.server.baseURI)
-
-    def login(self, username, password):
-        self.server.setCredentials(username, password)
-
-    def execute(self, query):
-        'Performs the query and returns results as SBOLResults'
-
-        # fetch JSON
-        self.server.setQuery( query.compile_query() )
-        self.server.setReturnFormat(JSON)
-        try:
-            json = self.server.query().convert()
-        except Exception, e:
-            print e
-            print query
-            return []
-
-        # process into SBOLResults
+    def convert(self):
+        json = QueryResult.convert(self)
         results = []
         for binding in json['results']['bindings']:
             result = SBOLResult()
             for key in binding:
                 result.__setattr__(key, binding[key]['value'])
             results.append(result)
-
         return results
 
-#############
-# functions
-#############
+    def __repr__(self):
+        return '<%s %s>' % (self.__class__.__name__, self.__dict__)
 
-def list_known_nodes(index='http://index.sbolstandard.org/syndex.txt'):
-    'Create a list of all known SBOLNodes'
-    html = urllib2.urlopen(index).read()
-    urls = [url for url in html.split('\n') if len(url) > 0]
-    nodes = [SBOLNode(url) for url in urls]
-    return nodes
+class SBOLNode(SPARQLWrapper):
 
-#############
-# instances
-#############
+    def __init__(self, url, username=None, password=None):
+        SPARQLWrapper.__init__(self, url)
+        self.setReturnFormat(JSON)
+        if username:
+            self.setCredentials(username, password)
 
-SBOL     = Namespace('http://sbols.org/v1#')
-REGISTRY = Namespace('http://partsregistry.org/#')
+    def __repr__(self):
+        return "<%s '%s'>" % (self.__class__.__name__, self.baseURI)
 
-SBPKB2 = SBOLNode('http://sbpkb2.sbols.org:8989/sbpkb2/query')
-SBPKB2.login('anonymous', 'anonymous')
+    def query(self):
+        return SBOLResult(self._query())
 
-################
-# simple tests
-################
+    def execute(self, query):
+        # todo remove/rename this?
+        self.setQuery(query.compile())
+        return self.query()
 
-def test_blank():
-    print 'search: blank, limit=20'
-    for result in SBPKB2.execute( SBOLQuery(limit=20) ):
-        print result
-
-def test_specific():
-    print 'search: B0010'
-    for result in SBPKB2.execute( SBOLQuery('B0010')  ):
-        print result
-
-if __name__ == '__main__':
-    test_blank()
-    test_specific()
+SBPKB2 = SBOLNode('http://sbpkb2.sbols.org:8989/sbpkb2/query',
+                  username='anonymous',
+                  password='anonymous')
 
