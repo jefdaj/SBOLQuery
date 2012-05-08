@@ -31,7 +31,8 @@ del asc, desc
 __all__ = (
     'RDF', 'RDFS', 'SB', 'PR', 'SO',
     'Variable', 'BNode', 'URIRef', 'Operator', 'Literal',
-    'SBOLQuery', 'SBOLResult', 'SBOLComponent', 'SBOLNode',
+    'SBOLQuery', 'SubpartQuery', 'SuperpartQuery', 'AnnotationQuery',
+    'SBOLResult', 'SBOLComponent', 'SBOLNode',
     'SBPKB2',
     'test')
 
@@ -44,6 +45,7 @@ PR = Namespace('http://partsregistry.org/#')
 SO = Namespace('http://purl.org/obo/owl/SO#')
 
 class SBOLQuery(Select):
+    'Generic query meant to be customized'
 
     def __init__(self):
 
@@ -59,9 +61,10 @@ class SBOLQuery(Select):
 
         # create the result Variable
         # this one is special because it represents
-        # the result object itself, rather than one
+        # the result object itself, as well as one
         # of its attributes
-        self.result = Variable('result')
+        self.result = Variable('uri')
+        self.SELECT.append(self.result)
 
         # results must be available DnaComponents with displayIds
         self.WHERE.append((self.result, RDF.type, SB.DnaComponent))
@@ -123,6 +126,7 @@ class SBOLQuery(Select):
         This weeds out features but leaves BioBrick parts.
         '''
         # todo avoid adding to self.SELECT?
+        # todo how to deal with multiple descriptions?
         if not subject:
             subject = self.result
         desc = Variable('description')
@@ -154,6 +158,43 @@ class SBOLQuery(Select):
             subject = self.result
         self.WHERE.append((subject, RDF.type, rdf_type))
 
+    def add_type_by_label(self, label, subject=None):
+        'Identifies the type by rdfs:label rather than uri'
+        if not subject:
+            subject = self.result
+        type_ = BNode()
+        label = Literal(label)
+        self.WHERE.append((subject, RDF.type, type_))
+        self.WHERE.append((type_, RDFS.label, label))
+
+class SubpartQuery(SBOLQuery):
+    'Finds DNA components whose subparts match a given pattern'
+
+    def __init__(self):
+        SBOLQuery.__init__(self)
+        self.subparts = []
+
+    def add_subpart(self, subpart, subject=None):
+        'Add a single subpart Variable to the subject'
+        if not subject:
+            subject = self.result
+        ann = BNode()
+        self.WHERE.append((subject, SB.annotation, ann))
+        self.WHERE.append((ann, SB.subComponent, subpart))
+
+    def add_precedes(self, targets=[]):
+        'Add precedes relationships between all the targets in order'
+        if not targets:
+            targets = self.subparts
+        for n in range( len(targets[:-1]) ):
+            self.WHERE.append((targets[n], SB.precedes, targets[n+1]))
+
+class SuperpartQuery(SubpartQuery):
+    'Finds larger constructs that contain the given DNA component(s)'
+
+class AnnotationQuery(SBOLQuery):
+    'Describes a single DNA component'
+
 class SBOLResult(QueryResult):
 
     def __repr__(self):
@@ -167,7 +208,10 @@ class SBOLResult(QueryResult):
                 com = SBOLComponent()
                 for key in binding:
                     value = binding[key]['value']
-                    com[key] = value
+                    if key.encode('utf-8') == 'uri':
+                        com.uri = value
+                    else:
+                        com[key] = value
                 components.append(com)
             return components
         except KeyError:
@@ -176,12 +220,15 @@ class SBOLResult(QueryResult):
 class SBOLComponent(dict):
 
     def __repr__(self):
-        return '<%s %s>' % (self.__class__.__name__, dict.__repr__(self))
+        return '<%s uri:"%s>"' % (self.__class__.__name__, self.uri)
 
-    #def __setitem__(self, key, value):
-    #    key   = key.encode('utf-8')
-    #    value = value.encode('utf-8')
-    #    dict.__setitem__(self, key, value)
+    def __str__(self):
+        return dict.__repr__(self)
+
+    def __setitem__(self, key, value):
+        key   = key.encode('utf-8')
+        value = value.encode('utf-8')
+        dict.__setitem__(self, key, value)
 
 class SBOLNode(SPARQLWrapper):
 
@@ -212,7 +259,7 @@ class SBOLNode(SPARQLWrapper):
 # known SBOL nodes
 ####################
 
-SBPKB2 = SBOLNode('http://sbpkb2.sbols.org:8989/sbpkb2/query',
+SBPKB2 = SBOLNode('http://localhost:8989/sbpkb2/query',
                   username='anonymous',
                   password='anonymous')
 
