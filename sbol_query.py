@@ -12,7 +12,7 @@ from SPARQLWrapper.Wrapper import QueryResult
 #     https://bitbucket.org/exogen/telescope/wiki/SPARQLBuilder
 #     http://code.google.com/p/telescope/wiki/QueryBuilderDesign
 #
-from telescope.sparql.queryforms import Select
+from telescope.sparql.queryforms import Select, Describe
 from telescope.sparql.helpers    import RDF, RDFS
 from telescope.sparql.helpers    import v  as Variable
 from telescope.sparql.helpers    import op as Operator
@@ -54,7 +54,7 @@ class SBOLQuery(Select):
         self.OPTIONAL = []
         self.FILTER   = []
         self.DISTINCT = True
-        self.LIMIT    = None
+        self.LIMIT    = 500
         self.ORDER_BY = None
 
         # create the result Variable
@@ -71,21 +71,21 @@ class SBOLQuery(Select):
         # probably want this to be True
         self.available_only = False
 
-        Select.__init__(self, self.SELECT)
-
     def compile(self):
-        'Builds the query and returns it as a str'
+        'Builds a query string based on stored graph patterns'
 
-        # To make all the query customizations reversible,
-        # this copies them to a new instance and compiles that.
-        query = self._clone(_limit=self.LIMIT,
-                            _order_by=self.ORDER_BY,
-                            _distinct=self.DISTINCT)
+        # create the query
+        if len(self.SELECT) == 0:
+            query = Describe(limit=self.LIMIT)
+        else:
+            query = Select(self.SELECT,
+                           limit=self.LIMIT,
+                           order_by=self.ORDER_BY,
+                           distinct=self.DISTINCT)
 
+        # add each graph pattern
         if self.available_only:
-            query = query.where(( self.result, SB.status, Literal('Available') ))
-
-        # add each stored graph pattern
+            query = query.where((self.result, SB.status, Literal('Available')))
         for clause in self.WHERE:
             query = query.where(clause)
         for clause in self.OPTIONAL:
@@ -94,7 +94,10 @@ class SBOLQuery(Select):
             query = query.filter(expression)
 
         # compile to a str
-        query = Select.compile(query)
+        if len(self.SELECT) == 0:
+            query = Describe.compile(query)
+        else:
+            query = Select.compile(query)
         return query
 
     def __repr__(self):
@@ -114,7 +117,19 @@ class SBOLQuery(Select):
             regexes.append( Operator.regex(var, keyword, 'i') )
         self.FILTER.append( Operator.or_(*regexes) )
 
-    def add_attribute(self, rdf_predicate, attr_name, optional=False):
+    def add_description(self, subject=None):
+        '''
+        Require each result to have a description.
+        This weeds out features but leaves BioBrick parts.
+        '''
+        # todo avoid adding to self.SELECT?
+        if not subject:
+            subject = self.result
+        desc = Variable('description')
+        self.SELECT.append(desc)
+        self.WHERE.append((subject, SB.description, desc))
+
+    def add_attribute(self, rdf_predicate, attr_name, subject=None, optional=False):
         '''
         Require each result pattern to have a triple like:
             <?result> <rdf_predicate> <?attr_name>
@@ -122,6 +137,9 @@ class SBOLQuery(Select):
         For example:
             query.add_attribute(SB.longDescription, 'long')
         '''
+        # todo avoid adding to self.SELECT?
+        if not subject:
+            subject = self.result
         var = Variable(attr_name)
         self.SELECT.append(var)
         if optional:
@@ -130,11 +148,11 @@ class SBOLQuery(Select):
             destination = self.WHERE
         destination.append((self.result, rdf_predicate, var))
 
-    def add_type(self, rdf_type):
+    def add_type(self, rdf_type, subject=None):
         'Adds a WHERE clause specifying the type of each result'
-        self.WHERE.append((self.result, RDF.type, rdf_type))
-
-    # todo add_so_type as an optional default attribute
+        if not subject:
+            subject = self.result
+        self.WHERE.append((subject, RDF.type, rdf_type))
 
 class SBOLResult(QueryResult):
 
@@ -180,9 +198,7 @@ class SBOLNode(SPARQLWrapper):
         try:
             return SBOLResult(self._query())
         except urllib2.URLError:
-            message = 'Unable to reach the server'
-            LOG.error(message)
-            print message
+            print 'Unable to reach the server'
             return []
 
     def execute(self, query):
