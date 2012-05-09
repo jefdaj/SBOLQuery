@@ -54,6 +54,11 @@ class SBOLQuery(Select):
 
         # create query elements
         # to be processed during compilation
+        self.PREFIX   = {RDF  : 'rdf',
+                         RDFS : 'rdfs',
+                         SB   : 'sb', 
+                         PR   : 'pr',
+                         SO   : 'so'}
         self.SELECT   = []
         self.WHERE    = []
         self.OPTIONAL = []
@@ -70,7 +75,7 @@ class SBOLQuery(Select):
         self.SELECT.append(self.result)
 
         # results must be available DnaComponents with displayIds
-        self.WHERE.append((self.result, RDF.type, SB.DnaComponent))
+        self.WHERE.append((self.result, Operator.is_a, SB.DnaComponent))
         self.add_attribute(SB.displayId, 'displayId')
 
         # although not a requirement, most people
@@ -111,9 +116,19 @@ class SBOLQuery(Select):
 
         # compile to a str
         if len(self.SELECT) == 1:
-            query = Describe.compile(query)
+            query = Describe.compile(query, self.PREFIX)
         else:
-            query = Select.compile(query)
+            query = Select.compile(query, self.PREFIX)
+        query = self.prettify(query)
+        return query
+
+    def prettify(self, query):
+        "Format the query so it's closer to human-readable"
+        query = query.replace(' . ', ' .\n')
+        query = query.replace('WHERE { ', 'WHERE {\n')
+        query = query.replace(' } OPTIONAL', ' }\nOPTIONAL')
+        query = query.replace(' } FILTER', ' }\nFILTER')
+        query = query.replace(') }', ')\n}')
         return query
 
     def __repr__(self):
@@ -169,7 +184,7 @@ class SBOLQuery(Select):
         'Adds a WHERE clause specifying the type of each result'
         if not subject:
             subject = self.result
-        self.WHERE.append((subject, RDF.type, rdf_type))
+        self.WHERE.append((subject, Operator.is_a, rdf_type))
 
     def add_type_by_label(self, label, subject=None):
         'Identifies the type by rdfs:label rather than uri'
@@ -177,7 +192,7 @@ class SBOLQuery(Select):
             subject = self.result
         type_ = BNode()
         label = Literal(label)
-        self.WHERE.append((subject, RDF.type, type_))
+        self.WHERE.append((subject, Operator.is_a, type_))
         self.WHERE.append((type_, RDFS.label, label))
 
     def add_sequence(self, optional=False):
@@ -193,12 +208,12 @@ class SBOLQuery(Select):
         clause.append((seq, SB.nucleotides, nt))
         destination.append(clause)
 
-    def add_uri(self, uri, target=None):
+    def add_uri(self, uri, subject=None):
         'Give the exact URI of the expected result'
-        if not target:
-            target = self.result
+        if not subject:
+            subject = self.result
         uri = URIRef(uri)
-        self.FILTER.append( Operator.sameTerm(target, uri) )
+        self.FILTER.append( Operator.sameTerm(subject, uri) )
 
 class SubpartQuery(SBOLQuery):
     'Finds DNA components whose subparts match a given pattern'
@@ -206,37 +221,79 @@ class SubpartQuery(SBOLQuery):
     def __init__(self):
         SBOLQuery.__init__(self)
 
-        # list of (SequenceAnnotation, DnaComponent)
+        # map of superpart --> [(annotation, subpart), ...]
         # for automatically adding precedes relationships
-        # note: these are added in order during add_subparts calls,
-        #       and that's assumed to be the precedes order
-        self.annotations = []
+        # note: these are added during add_subparts calls,
+        #       and assumed to be in order
+        self.subparts = {}
+        self.num_subparts = 0
 
-    def add_subpart(self, subpart, subject=None):
+    def add_subpart(self, component, subject=None):
         'Add a single subpart Variable to the subject'
         if not subject:
             subject = self.result
-        ann = BNode()
-        self.annotations.append((ann, subpart))
+        ann = Variable('sub%d' % self.num_subparts)
+
+        # add triples to the graph
         self.WHERE.append((subject, SB.annotation, ann))
-        self.WHERE.append((ann, SB.subComponent, subpart))
-        #self.add_description(subject=subpart)
+        #self.WHERE.append((ann, Operator.is_a, SB.SequenceAnnotation))
+        self.WHERE.append((ann, SB.subComponent, component))
+        #self.WHERE.append((component, Operator.is_a, SB.DnaComponent))
+        #self.add_description(subject=component)
+
+        # keep track of annotations, subparts for later
+        if not subject in self.subparts:
+            self.subparts[subject] = []
+        self.subparts[subject].append((ann, component))
 
         # parts list features with the same name
         # as subparts, which should probably be filtered out
-        #same = Operator.sameTerm(self.result, subpart)
+        #same = Operator.sameTerm(self.result, component)
         #diff = Operator.not_(same)
         #self.FILTER.append(diff)
 
-    def add_precedes(self, targets=[]):
-        'Add precedes relationships between all the targets in order'
-        if not targets:
-            targets = self.annotations
-        for n in range( len(targets[:-1]) ):
-            self.WHERE.append((targets[n][0], SB.precedes, targets[n+1][0]))
+        self.num_subparts += 1
+
+    # todo move this to SBOLQuery?
+    def add_precedes(self, upstream, downstream):
+        'Add a single precedes relationship'
+        self.WHERE.append((upstream, SB.precedes, downstream))
+
+    def add_precedes_list(self, subjects=[]):
+        'Add precedes relationships between an ordered list of components'
+        if not subjects:
+            subjects=self.subparts[self.result]
+        for n in range( len(subjects[:-1]) ):
+            self.add_precedes(subjects[n][0], subjects[n+1][0])
+
+    def add_all_precedes(self):
+        'Fill in all the precedes relationships automatically'
+        self.add_precedes_list()
 
 class SuperpartQuery(SubpartQuery):
     'Finds larger constructs that contain the given DNA component(s)'
+
+    def __init__(self):
+        SubpartQuery.__init__(self)
+
+        # DNA component containing self.result,
+        # plus all the ones upstream and downstream
+        # note: self.result itself isn't mentioned;
+        #       the superpart is assumed to contain
+        #       it if it contains all of its subparts
+        self.superpart = Variable('super')
+
+    def add_subpart(self, component, in_result=False):
+        'Adds a subpart to self.superpart, and maybe also self.result'
+        SubpartQuery.add_subpart(self, component, subject=self.superpart)
+        if in_result:
+            SubpartQuery.add_subpart(self, component, subject=self.result)
+            ann1 = self.subparts[self.superpart][-1][0]
+            ann2 = self.subparts[self.result][-1][0]
+            self.FILTER.append( Operator.sameTerm(ann1, ann2) )
+
+    def add_all_precedes(self):
+        self.add_precedes_list( self.subparts[self.superpart] )
 
 class ComponentQuery(SBOLQuery):
     'DESCRIBEs a single SBOLComponent'
