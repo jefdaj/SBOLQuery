@@ -67,7 +67,7 @@ class SPARQLQuery(object):
         return graph.query(unicode(self.compile(prefix_map)))
     
     def _get_compiler_class(self):
-        from telescope.sparql.compiler import QueryCompiler
+        from .compiler import QueryCompiler
         return QueryCompiler
 
     def compile(self, prefix_map=None, compiler_class=None):
@@ -109,7 +109,7 @@ class SolutionModifierSupportingQuery(SPARQLQuery):
             raise ValueError("Indexing is not supported.")
     
     def _get_compiler_class(self):
-        from telescope.sparql.compiler import SolutionModifierSupportingQueryCompiler
+        from .compiler import SolutionModifierSupportingQueryCompiler
         return SolutionModifierSupportingQueryCompiler
 
     def order_by(self, *expressions):
@@ -151,7 +151,7 @@ class ProjectionSupportingQuery(SolutionModifierSupportingQuery):
         self.projection = tuple(projection)
     
     def _get_compiler_class(self):
-        from telescope.sparql.compiler import ProjectionSupportingQueryCompiler
+        from .compiler import ProjectionSupportingQueryCompiler
         return ProjectionSupportingQueryCompiler
 
     def project(self, *terms, **kwargs):

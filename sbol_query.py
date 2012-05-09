@@ -31,7 +31,7 @@ del asc, desc
 __all__ = (
     'RDF', 'RDFS', 'SB', 'PR', 'SO',
     'Variable', 'BNode', 'URIRef', 'Operator', 'Literal',
-    'SBOLQuery', 'SubpartQuery', 'SuperpartQuery', 'AnnotationQuery',
+    'SBOLQuery', 'SubpartQuery', 'SuperpartQuery', 'ComponentQuery',
     'SBOLResult', 'SBOLComponent', 'SBOLNode',
     'SBPKB2',
     'test')
@@ -78,8 +78,8 @@ class SBOLQuery(Select):
         'Builds a query string based on stored graph patterns'
 
         # create the query
-        if len(self.SELECT) == 0:
-            query = Describe(limit=self.LIMIT)
+        if len(self.SELECT) == 1:
+            query = Describe(self.SELECT)
         else:
             query = Select(self.SELECT,
                            limit=self.LIMIT,
@@ -90,14 +90,24 @@ class SBOLQuery(Select):
         if self.available_only:
             query = query.where((self.result, SB.status, Literal('Available')))
         for clause in self.WHERE:
-            query = query.where(clause)
+            try:
+                # add multiple triples
+                query = query.where(*clause)
+            except TypeError:
+                # add single triple
+                query = query.where(clause)
         for clause in self.OPTIONAL:
-            query = query.where(clause, optional=True)
+            try:
+                # add multiple triples
+                query = query.where(*clause, optional=True)
+            except TypeError:
+                # add single triple
+                query = query.where(clause, optional=True)
         for expression in self.FILTER:
             query = query.filter(expression)
 
         # compile to a str
-        if len(self.SELECT) == 0:
+        if len(self.SELECT) == 1:
             query = Describe.compile(query)
         else:
             query = Select.compile(query)
@@ -167,6 +177,19 @@ class SBOLQuery(Select):
         self.WHERE.append((subject, RDF.type, type_))
         self.WHERE.append((type_, RDFS.label, label))
 
+    def add_sequence(self, optional=False):
+        seq = BNode()
+        nt  = Variable('sequence')
+        self.SELECT.append(nt)
+        if optional:
+            destination = self.OPTIONAL
+        else:
+            destination = self.WHERE
+        clause = []
+        clause.append((self.result, SB.dnaSequence, seq))
+        clause.append((seq, SB.nucleotides, nt))
+        destination.append(clause)
+
 class SubpartQuery(SBOLQuery):
     'Finds DNA components whose subparts match a given pattern'
 
@@ -192,8 +215,23 @@ class SubpartQuery(SBOLQuery):
 class SuperpartQuery(SubpartQuery):
     'Finds larger constructs that contain the given DNA component(s)'
 
-class AnnotationQuery(SBOLQuery):
-    'Describes a single DNA component'
+class ComponentQuery(SBOLQuery):
+    'DESCRIBEs a single SBOLComponent'
+
+    def __init__(self, component):
+        SBOLQuery.__init__(self)
+
+        # restrict to a specific subject uri
+        self.uri = URIRef(component.uri)
+        self.FILTER.append( Operator.sameTerm(self.result, self.uri) )
+
+        # add some descriptive attributes
+        # todo see if this can be made into a DESCRIBE query
+        attributes = {SB.name        : 'name',
+                      SB.description : 'description'}
+        for p in attributes:
+            self.add_attribute(p, attributes[p], optional=True)
+        self.add_sequence(optional=True)
 
 class SBOLResult(QueryResult):
 
@@ -201,6 +239,7 @@ class SBOLResult(QueryResult):
         return '<%s %s>' % (self.__class__.__name__, self.__dict__)
 
     def convert(self):
+        'Build SBOLComponents from JSON results'
         json = QueryResult.convert(self)
         components = []
         try:
@@ -242,11 +281,7 @@ class SBOLNode(SPARQLWrapper):
         return "<%s '%s'>" % (self.__class__.__name__, self.baseURI)
 
     def query(self):
-        try:
-            return SBOLResult(self._query())
-        except urllib2.URLError:
-            print 'Unable to reach the server'
-            return []
+        return SBOLResult(self._query())
 
     def execute(self, query):
         # todo remove/rename this?
