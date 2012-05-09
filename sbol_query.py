@@ -44,7 +44,7 @@ __all__ = (
 ##########################
 
 SB = Namespace('http://sbols.org/v1#')
-PR = Namespace('http://partsregistry.org/#')
+PR = Namespace('http://partsregistry.org/type/')
 SO = Namespace('http://purl.org/obo/owl/SO#')
 
 class SBOLQuery(Select):
@@ -71,7 +71,7 @@ class SBOLQuery(Select):
         # this one is special because it represents
         # the result object itself, as well as one
         # of its attributes
-        self.result = Variable('uri')
+        self.result = Variable('result')
         self.SELECT.append(self.result)
 
         # results must be available DnaComponents with displayIds
@@ -323,7 +323,7 @@ class SBOLResult(QueryResult):
                 com = SBOLComponent()
                 for key in binding:
                     value = binding[key]['value']
-                    if key.encode('utf-8') == 'uri':
+                    if key.encode('utf-8') == 'result':
                         com.uri = value
                     else:
                         com[key] = value
