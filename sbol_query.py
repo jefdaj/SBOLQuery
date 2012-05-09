@@ -77,10 +77,7 @@ class SBOLQuery(Select):
         # results must be available DnaComponents with displayIds
         self.WHERE.append((self.result, Operator.is_a, SB.DnaComponent))
         self.add_attribute(SB.displayId, 'displayId')
-
-        # although not a requirement, most people
-        # probably want this to be True
-        self.available_only = False
+        self.available_only = True
 
     def compile(self):
         'Builds a query string based on stored graph patterns'
@@ -95,8 +92,9 @@ class SBOLQuery(Select):
                            distinct=self.DISTINCT)
 
         # add each graph pattern
-        if self.available_only:
-            query = query.where((self.result, SB.status, Literal('Available')))
+        # todo add status to the SBPKB2
+        #if self.available_only:
+        #    query = query.where((self.result, SB.status, Literal('Available')))
         for clause in self.WHERE:
             try:
                 # add multiple triples
@@ -232,7 +230,7 @@ class SubpartQuery(SBOLQuery):
         'Add a single subpart Variable to the subject'
         if not subject:
             subject = self.result
-        ann = Variable('sub%d' % self.num_subparts)
+        ann = Variable('an%d' % self.num_subparts)
 
         # add triples to the graph
         self.WHERE.append((subject, SB.annotation, ann))
@@ -290,7 +288,7 @@ class SuperpartQuery(SubpartQuery):
             SubpartQuery.add_subpart(self, component, subject=self.result)
             ann1 = self.subparts[self.superpart][-1][0]
             ann2 = self.subparts[self.result][-1][0]
-            self.FILTER.append( Operator.sameTerm(ann1, ann2) )
+            #self.FILTER.append( Operator.sameTerm(ann1, ann2) )
 
     def add_all_precedes(self):
         self.add_precedes_list( self.subparts[self.superpart] )
