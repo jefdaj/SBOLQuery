@@ -20,13 +20,16 @@ from telescope.sparql.helpers    import op as Operator
 # hack to put all the operators in one place
 from telescope.sparql.helpers import is_a, and_, or_
 from telescope.sparql.helpers import asc, desc
+from telescope.sparql.operators import invert
 Operator.is_a = is_a
 Operator.and_ = and_
 Operator.or_  = or_
+Operator.not_ = invert
 Operator.asc  = asc
 Operator.desc = desc
 del is_a, and_, or_
 del asc, desc
+del invert
 
 __all__ = (
     'RDF', 'RDFS', 'SB', 'PR', 'SO',
@@ -190,27 +193,47 @@ class SBOLQuery(Select):
         clause.append((seq, SB.nucleotides, nt))
         destination.append(clause)
 
+    def add_uri(self, uri, target=None):
+        'Give the exact URI of the expected result'
+        if not target:
+            target = self.result
+        uri = URIRef(uri)
+        self.FILTER.append( Operator.sameTerm(target, uri) )
+
 class SubpartQuery(SBOLQuery):
     'Finds DNA components whose subparts match a given pattern'
 
     def __init__(self):
         SBOLQuery.__init__(self)
-        self.subparts = []
+
+        # list of (SequenceAnnotation, DnaComponent)
+        # for automatically adding precedes relationships
+        # note: these are added in order during add_subparts calls,
+        #       and that's assumed to be the precedes order
+        self.annotations = []
 
     def add_subpart(self, subpart, subject=None):
         'Add a single subpart Variable to the subject'
         if not subject:
             subject = self.result
         ann = BNode()
+        self.annotations.append((ann, subpart))
         self.WHERE.append((subject, SB.annotation, ann))
         self.WHERE.append((ann, SB.subComponent, subpart))
+        #self.add_description(subject=subpart)
+
+        # parts list features with the same name
+        # as subparts, which should probably be filtered out
+        #same = Operator.sameTerm(self.result, subpart)
+        #diff = Operator.not_(same)
+        #self.FILTER.append(diff)
 
     def add_precedes(self, targets=[]):
         'Add precedes relationships between all the targets in order'
         if not targets:
-            targets = self.subparts
+            targets = self.annotations
         for n in range( len(targets[:-1]) ):
-            self.WHERE.append((targets[n], SB.precedes, targets[n+1]))
+            self.WHERE.append((targets[n][0], SB.precedes, targets[n+1][0]))
 
 class SuperpartQuery(SubpartQuery):
     'Finds larger constructs that contain the given DNA component(s)'
@@ -220,13 +243,11 @@ class ComponentQuery(SBOLQuery):
 
     def __init__(self, component):
         SBOLQuery.__init__(self)
-
-        # restrict to a specific subject uri
-        self.uri = URIRef(component.uri)
-        self.FILTER.append( Operator.sameTerm(self.result, self.uri) )
+        self.add_uri(component.uri)
 
         # add some descriptive attributes
         # todo see if this can be made into a DESCRIBE query
+        # todo add author, etc. if they're added to the SBPKB
         attributes = {SB.name        : 'name',
                       SB.description : 'description'}
         for p in attributes:
