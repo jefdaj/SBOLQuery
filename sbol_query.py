@@ -32,10 +32,11 @@ del asc, desc
 del invert
 
 __all__ = (
-    'RDF', 'RDFS', 'SB', 'PR', 'SO',
+    'RDF', 'RDFS', 'SB', 'PRT', 'PRP', 'SO',
     'Variable', 'BNode', 'URIRef', 'Operator', 'Literal',
     'SBOLQuery', 'SubpartQuery', 'SuperpartQuery', 'ComponentQuery',
     'SBOLResult', 'SBOLComponent', 'SBOLNode',
+    'is_composite', 'list_subparts', 
     'SBPKB2',
     'test')
 
@@ -43,9 +44,10 @@ __all__ = (
 # SPARQL wrapper classes
 ##########################
 
-SB = Namespace('http://sbols.org/v1#')
-PR = Namespace('http://partsregistry.org/type/')
-SO = Namespace('http://purl.org/obo/owl/SO#')
+SB  = Namespace('http://sbols.org/v1#')
+PRT = Namespace('http://partsregistry.org/type/')
+PRP = Namespace('http://partsregistry.org/part/')
+SO  = Namespace('http://purl.org/obo/owl/SO#')
 
 class SBOLQuery(Select):
     'Generic query meant to be customized'
@@ -57,7 +59,8 @@ class SBOLQuery(Select):
         self.PREFIX   = {RDF  : 'rdf',
                          RDFS : 'rdfs',
                          SB   : 'sb', 
-                         PR   : 'pr',
+                         PRT  : 'prt',
+                         PRP  : 'prp',
                          SO   : 'so'}
         self.SELECT   = []
         self.WHERE    = []
@@ -335,7 +338,10 @@ class SBOLResult(QueryResult):
 class SBOLComponent(dict):
 
     def __repr__(self):
-        return '<%s uri:"%s>"' % (self.__class__.__name__, self.uri)
+        try:
+            return '<%s uri:"%s>"' % (self.__class__.__name__, self.uri)
+        except:
+            return dict.__repr(self)
 
     def __str__(self):
         return dict.__repr__(self)
@@ -373,6 +379,65 @@ class SBOLNode(SPARQLWrapper):
 SBPKB2 = SBOLNode('http://localhost:8989/sbpkb2/query',
                   username='anonymous',
                   password='anonymous')
+
+##############################################
+# functions for exploring the Parts Registry
+##############################################
+
+def list_precedes(uri):
+    'List subparts of a given part'
+    # todo write a version that handles composite parts
+    superpart   = Variable('superpart')
+    annotation1 = BNode()
+    annotation2 = BNode()
+    upstream    = Variable('upstream')
+    downstream  = Variable('downstream')
+    query = Select([upstream, downstream], distinct=True)
+    query = query.where((superpart, SB.annotation, annotation1))
+    query = query.where((superpart, SB.annotation, annotation2))
+    query = query.where((annotation1, SB.subComponent, upstream))
+    query = query.where((annotation2, SB.subComponent, downstream))
+    query = query.where((annotation1, SB.precedes, annotation2))
+    query = query.filter(Operator.sameTerm(superpart, URIRef(uri)))
+    rfc10 = URIRef('http://partsregistry.org/part/RFC_10')
+    query = query.filter(Operator.not_(Operator.sameTerm(upstream, rfc10)))
+    query = query.filter(Operator.not_(Operator.sameTerm(downstream, rfc10)))
+    query = query.compile({SB:'sb', PRP:'prp'})
+    SBPKB2.setQuery(query)
+    results = SBPKB2.queryAndConvert()
+    results = [(r['upstream'], r['downstream']) for r in results]
+    return results
+
+def is_composite(uri):
+    return list_precedes(uri) != []
+
+def list_basic_precedes(uri):
+    'List precedes, excluding composite parts'
+    precedes = list_precedes(uri)
+    output = []
+    for pre in precedes:
+        if not is_composite(pre[0]) and not is_composite(pre[1]):
+            output.append(pre)
+    return output
+
+def list_subparts(uri):
+    'List subparts in order'
+    precedes = list_basic_precedes(uri)
+    if len(precedes) == 0:
+        return []
+    else:
+        # find the first part
+        upstream   = [p[0] for p in precedes]
+        downstream = [p[1] for p in precedes]
+        first = [p for p in upstream if not p in downstream][0]
+
+        # put the rest in order
+        ordered = [first]
+        for n in range(len(downstream)):
+            index = upstream.index(first)
+            first = downstream[index]
+            ordered.append(first)
+        return ordered
 
 ####################
 # very simple test
