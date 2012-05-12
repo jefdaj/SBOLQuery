@@ -19,7 +19,7 @@ from telescope.sparql.helpers    import op as Operator
 
 # hack to put all the operators in one place
 from telescope.sparql.helpers import is_a, and_, or_
-from telescope.sparql.helpers import asc, desc
+from telescope.sparql.helpers import asc, desc, union
 from telescope.sparql.operators import invert
 Operator.is_a = is_a
 Operator.and_ = and_
@@ -27,6 +27,8 @@ Operator.or_  = or_
 Operator.not_ = invert
 Operator.asc  = asc
 Operator.desc = desc
+Operator.union = union
+del union
 del is_a, and_, or_
 del asc, desc
 del invert
@@ -36,7 +38,7 @@ __all__ = (
     'Variable', 'BNode', 'URIRef', 'Operator', 'Literal',
     'SBOLQuery', 'SubpartQuery', 'SuperpartQuery', 'ComponentQuery',
     'SBOLResult', 'SBOLComponent', 'SBOLNode',
-    'is_composite', 'list_subparts', 
+    'is_composite', 'list_subparts', 'list_categories',
     'SBPKB2',
     'test')
 
@@ -141,6 +143,8 @@ class SBOLQuery(Select):
     def add_keyword(self, keyword, variables=None):
         'Require one Variable to contain the keyword'
 
+        # todo rename variables --> subjects?
+
         if not variables:
             variables = self.SELECT
 
@@ -149,7 +153,7 @@ class SBOLQuery(Select):
             regexes.append( Operator.regex(var, keyword, 'i') )
         self.FILTER.append( Operator.or_(*regexes) )
 
-    def add_description(self, subject=None):
+    def add_description(self, subject=None, optional=False):
         '''
         Require each result to have a description.
         This weeds out features but leaves BioBrick parts.
@@ -158,9 +162,13 @@ class SBOLQuery(Select):
         # todo how to deal with multiple descriptions?
         if not subject:
             subject = self.result
+        if optional:
+            dest = self.OPTIONAL
+        else:
+            dest = self.WHERE
         desc = Variable('description')
         self.SELECT.append(desc)
-        self.WHERE.append((subject, SB.description, desc))
+        dest.append((subject, SB.description, desc))
 
     def add_attribute(self, rdf_predicate, attr_name, subject=None, optional=False):
         '''
@@ -229,16 +237,22 @@ class SubpartQuery(SBOLQuery):
         self.subparts = {}
         self.num_subparts = 0
 
+        # Whether at least one result-->annotation-->subpart
+        # link has been made. only the first one is really needed.
+        self._attached = False
+
     def add_subpart(self, component, subject=None):
         'Add a single subpart Variable to the subject'
         if not subject:
             subject = self.result
-        ann = Variable('an%d' % self.num_subparts)
+        ann = Variable('ann%d' % self.num_subparts)
 
         # add triples to the graph
-        self.WHERE.append((subject, SB.annotation, ann))
-        #self.WHERE.append((ann, Operator.is_a, SB.SequenceAnnotation))
+        if not self._attached:
+            self.WHERE.append((subject, SB.annotation, ann))
+            self._attached = True
         self.WHERE.append((ann, SB.subComponent, component))
+        #self.WHERE.append((ann, Operator.is_a, SB.SequenceAnnotation))
         #self.WHERE.append((component, Operator.is_a, SB.DnaComponent))
         #self.add_description(subject=component)
 
@@ -284,14 +298,15 @@ class SuperpartQuery(SubpartQuery):
         #       it if it contains all of its subparts
         self.superpart = Variable('super')
 
+        # ensures the result and superpart are both attached
+        self._result_attached = False
+        
     def add_subpart(self, component, in_result=False):
         'Adds a subpart to self.superpart, and maybe also self.result'
         SubpartQuery.add_subpart(self, component, subject=self.superpart)
         if in_result:
             SubpartQuery.add_subpart(self, component, subject=self.result)
-            ann1 = self.subparts[self.superpart][-1][0]
-            ann2 = self.subparts[self.result][-1][0]
-            #self.FILTER.append( Operator.sameTerm(ann1, ann2) )
+            self._result_attached = True
 
     def add_all_precedes(self):
         self.add_precedes_list( self.subparts[self.superpart] )
@@ -299,9 +314,12 @@ class SuperpartQuery(SubpartQuery):
 class ComponentQuery(SBOLQuery):
     'DESCRIBEs a single SBOLComponent'
 
-    def __init__(self, component):
+    def __init__(self, component=None, uri=None):
         SBOLQuery.__init__(self)
-        self.add_uri(component.uri)
+        if uri:
+            self.add_uri(uri)
+        elif component:
+            self.add_uri(component.uri)
 
         # add some descriptive attributes
         # todo see if this can be made into a DESCRIBE query
@@ -310,7 +328,24 @@ class ComponentQuery(SBOLQuery):
                       SB.description : 'description'}
         for p in attributes:
             self.add_attribute(p, attributes[p], optional=True)
+
+        # add sequence
         self.add_sequence(optional=True)
+
+        # add SO type
+        so_type = Variable('so_type')
+        label = BNode()
+        self.SELECT.append(so_type)
+        clause = ((self.result, Operator.is_a, so_type),
+                  (so_type,     RDFS.label,    label))
+        self.OPTIONAL.append(clause)
+
+        # add PR type
+        pr_type = Variable('pr_type')
+        self.SELECT.append(pr_type)
+        clause = ((self.result, Operator.is_a, pr_type),
+                  (pr_type,     Operator.is_a, PRT    ))
+        self.OPTIONAL.append(clause)
 
 class SBOLResult(QueryResult):
 
@@ -341,7 +376,7 @@ class SBOLComponent(dict):
         try:
             return '<%s uri:"%s>"' % (self.__class__.__name__, self.uri)
         except:
-            return dict.__repr(self)
+            return dict.__repr__(self)
 
     def __str__(self):
         return dict.__repr__(self)
@@ -406,6 +441,22 @@ def list_precedes(uri):
     SBPKB2.setQuery(query)
     results = SBPKB2.queryAndConvert()
     results = [(r['upstream'], r['downstream']) for r in results]
+    return results
+
+def list_categories():
+    'List possible types of DnaComponent'
+    com = Variable('component')
+    cat = Variable('category')
+    #lab = Variable('label')
+    query = Select([cat], distinct=True)
+    query = query.where((com, Operator.is_a, SB.DnaComponent))
+    query = query.where((com, Operator.is_a, cat))
+    query = query.filter((Operator.not_(Operator.sameTerm(cat, SB.DnaComponent))))
+    query = query.compile({SB:'sb'})
+    SBPKB2.setQuery(query)
+    results = SBPKB2.queryAndConvert()
+    results = [r['category'] for r in results]
+    results.sort()
     return results
 
 def is_composite(uri):
