@@ -1,6 +1,6 @@
 from operator import or_, and_, pos, neg, inv, invert
 from operator import eq, ne, lt, gt, le, ge, add, sub, mul, div
-from .expressions import Expression, BinaryExpression
+from telescope.sparql.expressions import Expression, BinaryExpression
 
 __all__ = ['Operator', 'FunctionCall', 'OperatorConstructor',
            'BuiltinOperatorConstructor']

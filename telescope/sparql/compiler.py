@@ -19,16 +19,16 @@ For example, `QueryCompiler.compile()` joins the tokens yielded by calling
 
 """
 from operator import itemgetter
-from ...rdflib import Literal, URIRef
-from ..exceptions import *
-from .expressions import *
-from . import operators
-from .operators import FunctionCall
-from .patterns import *
-from .query import *
-from .queryforms import *
-from .helpers import RDF, XSD, is_a
-from .util import defrag, to_list
+from rdflib import Literal, URIRef
+from telescope.exceptions import *
+from telescope.sparql.expressions import *
+from telescope.sparql import operators
+from telescope.sparql.operators import FunctionCall
+from telescope.sparql.patterns import *
+from telescope.sparql.query import *
+from telescope.sparql.queryforms import *
+from telescope.sparql.helpers import RDF, XSD, is_a
+from telescope.sparql.util import defrag, to_list
 
 __all__ = ['SPARQLCompiler', 'ExpressionCompiler', 'QueryCompiler',
            'SolutionModifierSupportingQueryCompiler',
