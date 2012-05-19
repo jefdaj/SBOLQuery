@@ -8,8 +8,8 @@
 @requires: U{RDFLib<http://rdflib.net>} package.
 """
 
-from . import SPARQLWrapper
-from .Wrapper import JSON, SELECT
+import SPARQLWrapper
+from SPARQLWrapper.Wrapper import JSON, SELECT
 import urllib2
 from types import *
 
@@ -224,29 +224,29 @@ class Bindings :
 
         Although C{Binding} is not a subclass of L{QueryResult<SPARQLWrapper.Wrapper.QueryResult>}, it is returned as a result by
         L{SPARQLWrapper2.query}, just like L{QueryResult<SPARQLWrapper.Wrapper.QueryResult>} is returned by
-        L{SPARQLWrapper.query}. Consequently,
+        L{SPARQLWrapper.SPARQLWrapper.query}. Consequently,
         having an empty C{convert} method to imitate L{QueryResult's convert method<SPARQLWrapper.Wrapper.QueryResult.convert>} may avoid unnecessary problems.
         """
         return self
 
 ##############################################################################################################
 
-class SPARQLWrapper2(SPARQLWrapper) :
-    """Subclass of L{Wrapper<SPARQLWrapper>} that works with a JSON SELECT return result only. The query result
+class SPARQLWrapper2(SPARQLWrapper.SPARQLWrapper) :
+    """Subclass of L{Wrapper<SPARQLWrapper.SPARQLWrapper>} that works with a JSON SELECT return result only. The query result 
     is automatically set to a L{Bindings} instance. Makes the average query processing a bit simpler..."""
     def __init__(self,baseURI,defaultGraph=None) :
         """
-        Class encapsulating a full SPARQL call. In contrast to the L{SPARQLWrapper<SPARQLWrapper>} superclass, the return format
+        Class encapsulating a full SPARQL call. In contrast to the L{SPARQLWrapper<SPARQLWrapper.SPARQLWrapper>} superclass, the return format
         cannot be set (it is defaulted to L{JSON<Wrapper.JSON>}).
         @param baseURI: string of the SPARQL endpoint's URI
         @type baseURI: string
         @keyword defaultGraph: URI for the default graph. Default is None, can be set via an explicit call, too
         @type defaultGraph: string
         """
-        SPARQLWrapper.__init__(self,baseURI,returnFormat=JSON,defaultGraph=defaultGraph)
+        SPARQLWrapper.SPARQLWrapper.__init__(self,baseURI,returnFormat=JSON,defaultGraph=defaultGraph)
 
     def setReturnFormat(self,format) :
-        """Set the return format (overriding the L{inherited method<SPARQLWrapper.setReturnFormat>}).
+        """Set the return format (overriding the L{inherited method<SPARQLWrapper.SPARQLWrapper.setReturnFormat>}).
         This method does nothing; this class instance should work with JSON only. The method is defined
         just to avoid possible errors by erronously setting the return format.
         When using this class, the user can safely ignore this call.
@@ -267,7 +267,7 @@ class SPARQLWrapper2(SPARQLWrapper) :
             @return: query result
             @rtype: L{Bindings} instance
         """
-        res = SPARQLWrapper.query(self)
+        res = SPARQLWrapper.SPARQLWrapper.query(self)
         if self.queryType == SELECT :
             return Bindings(res)
         else :
@@ -284,5 +284,5 @@ class SPARQLWrapper2(SPARQLWrapper) :
         if self.queryType == SELECT :
             return self.query()
         else :
-            return SPARQLWrapper.queryAndConvert(self)
+            return SPARQLWrapper.SPARQLWrapper.queryAndConvert(self)
 
