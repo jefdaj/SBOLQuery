@@ -35,9 +35,9 @@ import re
 from decimal import Decimal
 from datetime import time
 
-from .isostrf import strftime, TIME_EXT_COMPLETE, TZ_EXT
-from .isoerror import ISO8601Error
-from .isotzinfo import TZ_REGEX, build_tzinfo
+from isodate.isostrf import strftime, TIME_EXT_COMPLETE, TZ_EXT
+from isodate.isoerror import ISO8601Error
+from isodate.isotzinfo import TZ_REGEX, build_tzinfo
 
 TIME_REGEX_CACHE = []
 # used to cache regular expressions to parse ISO time strings.
