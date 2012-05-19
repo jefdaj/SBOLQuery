@@ -1,5 +1,5 @@
 """
-This module defines the different types of terms. Terms are the kinds of 
+This module defines the different types of terms. Terms are the kinds of
 objects that can appear in a quoted/asserted triple. This includes those 
 that are core to RDF:
 
@@ -39,19 +39,26 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 
 import base64
-
 import threading
+
 from urlparse import urlparse, urljoin, urldefrag
 from string import ascii_letters
 from random import choice
 from itertools import islice
 from datetime import date, time, datetime
-from ..isodate import parse_time, parse_date, parse_datetime
+from isodate import parse_time, parse_date, parse_datetime
+from re import sub
 
 try:
     from hashlib import md5
 except ImportError:
     from md5 import md5
+
+try:
+    from uuid import uuid4
+except ImportError:
+    import os
+    import random
 
 import py3compat
 b = py3compat.b
@@ -97,6 +104,9 @@ class URIRef(Identifier):
         except UnicodeDecodeError:
             rt = unicode.__new__(cls, value, 'utf-8')
         return rt
+
+    def toPython(self):
+        return unicode(self)
 
     def n3(self):
         return "<%s>" % self
@@ -157,8 +167,7 @@ class URIRef(Identifier):
         else:
             clsName = self.__class__.__name__
 
-        # quoting risk? drewp is not sure why this doesn't use %r
-        return """%s('%s')""" % (clsName, str(self))
+        return """%s(%s)""" % (clsName, super(URIRef,self).__repr__())
         
 
     def md5_term_hash(self):
@@ -173,21 +182,52 @@ class URIRef(Identifier):
         return d.hexdigest()
 
 
-
-def _letter():
-    while True:
-        yield choice(ascii_letters)
-
 def _unique_id():
-    """Create a (hopefully) unique prefix"""
-    uid = "".join(islice(_letter(), 0, 8))
-    return uid
+    # Used to read: """Create a (hopefully) unique prefix"""
+    # now retained merely to leave interal API unchanged.
+    # From BNode.__new__() below ...
+    # 
+    # acceptable bnode value range for RDF/XML needs to be
+    # something that can be serialzed as a nodeID for N3
+    # 
+    # BNode identifiers must be valid NCNames" _:[A-Za-z][A-Za-z0-9]*
+    # http://www.w3.org/TR/2004/REC-rdf-testcases-20040210/#nodeID
+    return "_"
+
+# Adapted from http://icodesnip.com/snippet/python/simple-universally-unique-id-uuid-or-guid
+def bnode_uuid():
+    """
+    Generates a uuid on behalf of Python 2.4
+    """
+    import socket
+    import time
+    try:
+        preseed = os.urandom(16)
+    except NotImplementedError: 
+        preseed = ''
+    # Have doubts about this. random.seed will just hash the string
+    random.seed('%s%s%s' % (preseed, os.getpid(), time.time()))
+    del preseed
+    t = long(time.time() * 1000.0)
+    r = long(random.random()*100000000000000000L)
+    try:
+        a = socket.gethostbyname(socket.gethostname())
+    except:
+        # if we can't get a network address, just imagine one
+        a = random.random()*100000000000000000L
+    data = str(t) + ' ' + str(r) + ' ' + str(a)
+    data = md5(data.encode('ascii')).hexdigest()
+    return '-'.join(
+            [data[:8], data[8:12], data[12:16], data[16:20], data[20:]])
 
 def _serial_number_generator():
-    i = 0
+    import sys
+    if sys.version_info[:2] < (2, 5):
+        _generator = bnode_uuid
+    else:
+        _generator = uuid4
     while 1:
-        yield i
-        i = i + 1
+            yield _generator()
 
 bNodeLock = threading.RLock()
 
@@ -217,10 +257,13 @@ class BNode(Identifier):
             # for RDF/XML needs to be something that can be serialzed
             # as a nodeID for N3 ??  Unless we require these
             # constraints be enforced elsewhere?
-            pass #assert is_ncname(unicode(value)), "BNode identifiers
-                 #must be valid NCNames"
-
+            pass # assert is_ncname(unicode(value)), "BNode identifiers
+                 # must be valid NCNames" _:[A-Za-z][A-Za-z0-9]*
+                 # http://www.w3.org/TR/2004/REC-rdf-testcases-20040210/#nodeID
         return Identifier.__new__(cls, value)
+
+    def toPython(self):
+        return unicode(self)
 
     def n3(self):
         return "_:%s" % self
@@ -282,6 +325,7 @@ class Literal(Identifier):
     doc = """
     RDF Literal: http://www.w3.org/TR/rdf-concepts/#section-Graph-Literal
 
+    >>> from rdflib import Literal, XSD
     >>> Literal(1).toPython()
     1%(L)s
     >>> Literal("adsf") > 1
@@ -293,7 +337,7 @@ class Literal(Identifier):
     >>> lit2006 < Literal('2007-01-01',datatype=XSD.date)
     True
     >>> Literal(datetime.utcnow()).datatype
-    rdflib.term.URIRef('http://www.w3.org/2001/XMLSchema#dateTime')
+    rdflib.term.URIRef(%(u)s'http://www.w3.org/2001/XMLSchema#dateTime')
     >>> oneInt     = Literal(1)
     >>> twoInt     = Literal(2)
     >>> twoInt < oneInt
@@ -316,6 +360,16 @@ class Literal(Identifier):
     True
     >>> "2005" < lit2006
     True
+    >>> x = Literal("2", datatype=XSD.integer)
+    >>> x
+    rdflib.term.Literal(%(u)s'2', datatype=rdflib.term.URIRef(%(u)s'http://www.w3.org/2001/XMLSchema#integer'))
+    >>> Literal(x) == x
+    True
+    >>> x = Literal("cake", lang="en")
+    >>> x
+    rdflib.term.Literal(%(u)s'cake', lang='en')
+    >>> Literal(x) == x
+    True
     """
     __doc__ = py3compat.format_doctest_out(doc)
 
@@ -325,6 +379,10 @@ class Literal(Identifier):
         if lang is not None and datatype is not None:
             raise TypeError("A Literal can only have one of lang or datatype, "
                "per http://www.w3.org/TR/rdf-concepts/#section-Graph-Literal")
+
+        if isinstance(value, Literal): # create from another Literal instance
+            datatype=datatype or value.datatype
+            lang=lang or value.language
 
         if datatype:
             lang = None
@@ -469,9 +527,9 @@ class Literal(Identifier):
         >>> from rdflib.namespace import XSD
         >>> Literal("YXNkZg==", datatype=XSD['base64Binary']) < "foo"
         True
-        >>> u"\xfe" < Literal(u"foo")
+        >>> %(u)s"\xfe" < Literal(%(u)s"foo")
         False
-        >>> Literal(base64.encodestring(u"\xfe".encode("utf-8")), datatype=URIRef("http://www.w3.org/2001/XMLSchema#base64Binary")) < u"foo"
+        >>> Literal(base64.encodestring(%(u)s"\xfe".encode("utf-8")), datatype=URIRef("http://www.w3.org/2001/XMLSchema#base64Binary")) < %(u)s"foo"
         False
         """
 
@@ -657,7 +715,7 @@ class Literal(Identifier):
             %(u)s'"1"^^<http://www.w3.org/2001/XMLSchema#integer>'
 
             >>> Literal(1.0).n3()
-            %(u)s'"1.0"^^<http://www.w3.org/2001/XMLSchema#float>'
+            %(u)s'"1.0"^^<http://www.w3.org/2001/XMLSchema#double>'
 
         Datatype and language isn't allowed (datatype takes precedence)::
 
@@ -677,14 +735,20 @@ class Literal(Identifier):
     def _literal_n3(self, use_plain=False, qname_callback=None):
         '''
         Using plain literal (shorthand) output::
+            >>> from rdflib.namespace import XSD
 
             >>> Literal(1)._literal_n3(use_plain=True)
             %(u)s'1'
 
             >>> Literal(1.0)._literal_n3(use_plain=True)
+            %(u)s'1e+00'
+
+            >>> Literal(1.0, datatype=XSD.decimal)._literal_n3(use_plain=True)
             %(u)s'1.0'
 
-            >>> from rdflib.namespace import XSD
+            >>> Literal(1.0, datatype=XSD.float)._literal_n3(use_plain=True)
+            %(u)s'"1.0"^^<http://www.w3.org/2001/XMLSchema#float>'
+
             >>> Literal("foo", datatype=XSD.string)._literal_n3(
             ...         use_plain=True)
             %(u)s'"foo"^^<http://www.w3.org/2001/XMLSchema#string>'
@@ -705,7 +769,15 @@ class Literal(Identifier):
         if use_plain and self.datatype in _PLAIN_LITERAL_TYPES:
             try:
                 self.toPython() # check validity
-                return '%s' % self
+                # this is a bit of a mess - 
+                # in py >=2.6 the string.format function makes this easier
+                # we try to produce "pretty" output
+                if self.datatype == _XSD_DOUBLE: 
+                    return sub(".?0*e","e", u'%e' % float(self))
+                elif self.datatype == _XSD_DECIMAL:
+                    return sub("0*$","0",u'%f' % float(self))
+                else:
+                    return u'%s' % self
             except ValueError:
                 pass # if it's in, we let it out?
 
@@ -813,11 +885,16 @@ class Literal(Identifier):
 
 _XSD_PFX = 'http://www.w3.org/2001/XMLSchema#'
 
+_XSD_FLOAT = URIRef(_XSD_PFX+'float')
+_XSD_DOUBLE = URIRef(_XSD_PFX+'double')
+_XSD_DECIMAL = URIRef(_XSD_PFX+'decimal')
+
+
 _PLAIN_LITERAL_TYPES = (
     URIRef(_XSD_PFX+'integer'),
-    URIRef(_XSD_PFX+'float'),
-    #XSD.decimal, XSD.double, # TODO: "subsumed" by float...
     URIRef(_XSD_PFX+'boolean'),
+    _XSD_DOUBLE,
+    _XSD_DECIMAL,
 )
 
 
@@ -840,9 +917,14 @@ from decimal import Decimal
 
 # Mappings from Python types to XSD datatypes and back (burrowed from sparta)
 # datetime instances are also instances of date... so we need to order these.
+
+# SPARQL/Turtle/N3 has shortcuts for int, double, decimal 
+# python has only float - to be in tune with sparql/n3/turtle
+# we default to XSD.double for float literals
+
 _PythonToXSD = [
     (basestring, (None, None)),
-    (float     , (None, URIRef(_XSD_PFX+'float'))),
+    (float     , (None, URIRef(_XSD_PFX+'double'))),
     (bool      , (lambda i:str(i).lower(), URIRef(_XSD_PFX+'boolean'))),
     (int       , (None, URIRef(_XSD_PFX+'integer'))),
     (long      , (None, URIRef(_XSD_PFX+'long'))),
@@ -909,6 +991,9 @@ class Variable(Identifier):
     def __repr__(self):
         return self.n3()
 
+    def toPython(self):
+        return "?%s" % self
+
     def n3(self):
         return "?%s" % self
 
@@ -934,6 +1019,9 @@ class Statement(Node, tuple):
 
     def __reduce__(self):
         return (Statement, (self[0], self[1]))
+
+    def toPython(self):
+        return (self[0], self[1])
 
 
 if __name__ == '__main__':
