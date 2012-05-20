@@ -110,7 +110,9 @@ class SBOLQuery(Select):
         for clause in self.OPTIONAL:
             try:
                 # add multiple triples
-                query = query.where(*clause, optional=True)
+                # todo fix so it works with n clauses...
+                #query = query.where(*clause, optional=True)
+                query = query.where(clause[0], clause[1], optional=True)
             except TypeError:
                 # add single triple
                 query = query.where(clause, optional=True)
@@ -205,7 +207,7 @@ class SBOLQuery(Select):
         self.WHERE.append((type_, RDFS.label, label))
 
     def add_sequence(self, optional=False):
-        seq = BNode()
+        seq = Variable('s')
         nt  = Variable('sequence')
         self.SELECT.append(nt)
         if optional:
@@ -411,7 +413,7 @@ class SBOLNode(SPARQLWrapper):
 # known SBOL nodes
 ####################
 
-SBPKB2 = SBOLNode('http://localhost:8989/sbpkb2/query',
+SBPKB2 = SBOLNode('http://sbpkb2.sbols.org:8989/sbpkb2/query',
                   username='anonymous',
                   password='anonymous')
 
